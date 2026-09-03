@@ -670,7 +670,7 @@ git add -A && git commit -m "feat(contract): race reducer + events fixture"
 **Interfaces:**
 - Produces: `Config` type, `ConfigSchema`, `parseDuration(s: string): number` (ms), `loadConfig(repoRoot: string): Config`, `parseConfig(text: string): Config`, `configuredFlags(cfg: Config): Configured` (the `configured` block of the run record, with `ci` decided by `ci_timeout > 0`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/config.test.ts
@@ -709,12 +709,12 @@ describe('parseConfig', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bun test test/core/config.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write config.ts**
+- [x] **Step 3: Write config.ts**
 
 ```ts
 // src/core/config.ts
@@ -776,12 +776,12 @@ export function configuredFlags(c: Config): Configured {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `bun test test/core/config.test.ts && bun run typecheck`
 Expected: pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(core): bakeoff.yml loader"
