@@ -2076,7 +2076,7 @@ git add -A && git commit -m "feat(core): commit leftovers, push, labels, gh pr c
   - `ScoreAgentFn = (ctx: { worktree; repoRoot; baseSha; config; agent: AgentResult; hiddenDir }) => Promise<Pick<AgentResult,'score'|'filesTouched'|'linesAdded'|'linesRemoved'>>` and `FinalizeFn = (agents: AgentResult[], configured: Configured) => AgentResult[]` (assigns diff component, ranks). Both are wired in Day 4; `null` means "skip".
   - Also `createAbortRegistry()`: `{ signalFor(driver): AbortSignal; abort(driver): void }` used by the server later.
 
-- [ ] **Step 1: Write the failing test with a fake driver**
+- [x] **Step 1: Write the failing test with a fake driver**
 
 ```ts
 // test/core/race.test.ts
@@ -2144,12 +2144,12 @@ describe('runRace', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/race.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write race.ts**
+- [x] **Step 3: Write race.ts**
 
 ```ts
 // src/core/race.ts
@@ -2284,7 +2284,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
