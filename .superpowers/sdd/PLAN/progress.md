@@ -14,7 +14,7 @@ Single-file runs during TDD use `bunx vitest run <file>`.
 | 2 | Contract schemas + run fixture | 2639ac2 | done |
 | 3 | Reducer + events fixture | 1fa2bc2 | done |
 | 4 | Config loader | (pending) | done |
-| 5 | Store (.bakeoff layout, run ids, events) | | pending |
+| 5 | Store (.bakeoff layout, run ids, events) | (pending) | done |
 | 6 | exec, repo detection, issue fetching | | pending |
 | 7 | Task packet builder | | pending |
 | 8 | Process control with group kill | | pending |

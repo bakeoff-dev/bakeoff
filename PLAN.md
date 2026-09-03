@@ -797,7 +797,7 @@ git add -A && git commit -m "feat(core): bakeoff.yml loader"
 **Interfaces:**
 - Produces: `newRunId(now?: Date, rand?: () => string): string`, `paths(repoRoot)` returning `{ stateDir, runsDir, hiddenDir, logsDir(id), runJson(id), events(id), html(id), png(id), ladder, log(id, driver) }`, `writeRun(repoRoot, rec)`, `readRun(repoRoot, id): RunRecord`, `listRunIds(repoRoot): string[]`, `appendEvent(repoRoot, id, ev)`, `readEvents(repoRoot, id): RaceEvent[]`, `readLadder(repoRoot): Ladder`, `writeLadder(repoRoot, ladder)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/store.test.ts
@@ -831,12 +831,12 @@ describe('store', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bun test test/core/store.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write store.ts**
+- [x] **Step 3: Write store.ts**
 
 ```ts
 // src/core/store.ts
@@ -903,7 +903,7 @@ export function writeLadder(repoRoot: string, ladder: Ladder): void {
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
