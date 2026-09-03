@@ -1114,7 +1114,7 @@ git add -A && git commit -m "feat(core): exec wrapper, repo detection, issue fet
 - Consumes: `IssueData` (Task 6), `Config` (Task 4).
 - Produces: `buildPacket(input: PacketInput): { text: string; hash: string }` where `PacketInput = { issue: IssueData; guidance: { agentsMd: string | null; claudeMd: string | null }; config: Pick<Config, 'test' | 'lint' | 'typecheck'> }`; `readGuidance(repoRoot): PacketInput['guidance']`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/packet.test.ts
@@ -1147,12 +1147,12 @@ describe('buildPacket', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/packet.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write packet.ts**
+- [x] **Step 3: Write packet.ts**
 
 ```ts
 // src/core/packet.ts
@@ -1202,7 +1202,7 @@ export function buildPacket(input: PacketInput): { text: string; hash: string } 
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
