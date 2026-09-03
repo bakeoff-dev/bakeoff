@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+<template id="__bundler_thumbnail" data-bg-color="#0A0A0F"><svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg"><circle cx="440" cy="400" r="260" fill="#F59E6B" opacity=".12"/><circle cx="400" cy="400" r="34" fill="#F59E6B"/><text x="480" y="456" font-family="Geist,system-ui,sans-serif" font-size="180" font-weight="700" fill="#F4F4F7" letter-spacing="-8">85</text></svg></template>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#0A0A0F;color:#F4F4F7;font-family:'Geist',system-ui,sans-serif;font-feature-settings:'tnum' 1;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+a{color:#F4F4F7;text-decoration:none}a:hover{color:#F4F4F7}
+</style>
+</helmet>
+<div style="width:1200px;height:630px;position:relative;overflow:hidden;background:#0A0A0F;box-sizing:border-box;padding:56px 64px;display:flex;flex-direction:column;gap:40px">
+  <div style="position:absolute;left:-80px;top:40px;width:820px;height:620px;border-radius:50%;background:radial-gradient(ellipse at 40% 45%,#F59E6B2E 0%,#F59E6B12 35%,transparent 70%);pointer-events:none"></div>
+  <div style="position:relative;display:flex;align-items:baseline;gap:16px">
+    <span style="font-size:26px;font-weight:500;letter-spacing:-.01em">Image export ignores custom DPI setting</span>
+    <span style="font-size:20px;color:rgba(255,255,255,.55)">shifan/gridloom #142</span>
+  </div>
+  <div style="position:relative;display:grid;grid-template-columns:1.25fr 1fr;gap:40px;flex:1;align-items:stretch">
+    <div style="border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);border-radius:16px;padding:32px 36px;box-shadow:inset 0 0 0 1px #F59E6B26, inset 0 0 90px #F59E6B18;display:flex;flex-direction:column;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="width:14px;height:14px;border-radius:50%;background:#F59E6B;display:block"></span>
+        <span style="font-size:28px;font-weight:500">Claude Code</span>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:14px">
+        <span style="font-size:180px;line-height:.85;font-weight:700;letter-spacing:-.05em">85</span>
+        <span style="font-size:28px;color:rgba(255,255,255,.55)">/ 100</span>
+      </div>
+      <div style="display:flex;gap:40px">
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:500;color:rgba(255,255,255,.55)">Cost</span><span style="font-size:30px;font-weight:600;letter-spacing:-.02em">$1.84</span></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:500;color:rgba(255,255,255,.55)">Duration</span><span style="font-size:30px;font-weight:600;letter-spacing:-.02em">6:52</span></div>
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:500;color:rgba(255,255,255,.55)">Tests</span><span style="font-size:30px;font-weight:600;letter-spacing:-.02em">48/48</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <sc-for list="{{ others }}" as="a" hint-placeholder-count="3">
+        <div style="flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.025);border-radius:16px;padding:0 28px;display:grid;grid-template-columns:28px 1fr auto;gap:16px;align-items:center">
+          <span style="font-size:18px;font-weight:500;color:rgba(255,255,255,.55)">{{ a.rank }}</span>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:10px;height:10px;border-radius:50%;background:{{ a.color }};display:block"></span><span style="font-size:22px;font-weight:500">{{ a.name }}</span></div>
+            <span style="font-size:16px;color:rgba(255,255,255,.55)">{{ a.meta }}</span>
+          </div>
+          <span style="font-size:52px;font-weight:700;letter-spacing:-.04em;line-height:1">{{ a.score }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="position:absolute;right:64px;bottom:40px;display:flex;align-items:center;gap:8px">
+    <span style="width:8px;height:8px;border-radius:2px;background:#F4F4F7;display:block"></span>
+    <span style="font-size:16px;font-weight:600;letter-spacing:-.02em">bakeoff</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:630}}">
+class Component extends DCLogic {
+  renderVals() {
+    const C = { codex:'#5EC8CE', opencode:'#E58BC7', gemini:'#9BCB6E' };
+    const others = [
+      {rank:2,id:'codex',name:'Codex',score:40,meta:'$0.92 · 4:58'},
+      {rank:3,id:'opencode',name:'OpenCode',score:10,meta:'$1.10 · 5:55'},
+      {rank:4,id:'gemini',name:'Gemini CLI',score:0,meta:'$0.41 · 1:33 · crashed'}
+    ].map(a => ({ ...a, color:C[a.id] }));
+    return { others };
+  }
+}
+</script>
+</body>
+</html>

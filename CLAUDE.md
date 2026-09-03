@@ -57,6 +57,14 @@ test/           vitest
 - Codex (`@openai/codex`) and OpenCode (`opencode-ai`) are not installed on the dev machine yet. Install and record a fixture before writing the parser.
 - Feature-detect flags by parsing `<cli> --help` in `doctor()`. Flags churn.
 
+## Design
+
+- The UI is specified in `design/handoff/design_handoff_bakeoff/README.md` (tokens, type, layout, motion) with HTML references in `standalone/`. Recreate it in React; do not ship the reference HTML.
+- Agent identity colors: Claude Code `#F59E6B`, Codex `#5EC8CE`, OpenCode `#E58BC7`, Gemini CLI `#9BCB6E`. They live once in `ui/src/theme.ts` (UI) and are mirrored in each driver's `color` and in `src/render/card.tsx`.
+- Deviations from the handoff are listed in SPEC.md section 10 under Visual design. Follow those, not the handoff, where they conflict.
+- `design/handoff/**/fixture.json` is a design fixture. Code and tests use `src/contract/fixtures/run.json`.
+- Terminal output follows `design/TERMINAL.md`: agent colors, dim labels, tabular numbers, no emoji, no box drawing, honors `NO_COLOR` and non-TTY. Color helpers live in `src/cli/render/style.ts`.
+
 ## Naming
 
 Package `bakeoff-cli`, binary `bakeoff`, GitHub org `bakeoff-dev`. Brand is Bakeoff.

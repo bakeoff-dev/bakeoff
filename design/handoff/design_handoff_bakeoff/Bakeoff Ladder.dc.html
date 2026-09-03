@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+<template id="__bundler_thumbnail" data-bg-color="#0A0A0F"><svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg"><circle cx="440" cy="400" r="260" fill="#F59E6B" opacity=".12"/><circle cx="400" cy="400" r="34" fill="#F59E6B"/><text x="480" y="456" font-family="Geist,system-ui,sans-serif" font-size="180" font-weight="700" fill="#F4F4F7" letter-spacing="-8">85</text></svg></template>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#0A0A0F;color:#F4F4F7;font-family:'Geist',system-ui,sans-serif;font-feature-settings:'tnum' 1;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+a{color:#F4F4F7;text-decoration:none}a:hover{color:#F4F4F7}
+</style>
+</helmet>
+<div style="display:flex;flex-direction:column;gap:48px;padding:0 0 64px;min-width:1200px">
+  <div data-screen-label="Ladder" style="position:relative;background-image:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:32px 32px;padding:36px 0 48px">
+    <div style="width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;align-items:baseline;gap:12px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08)">
+        <span style="font-size:15px;font-weight:500">Ladder</span>
+        <span style="font-size:13px;color:rgba(255,255,255,.55)">shifan/gridloom</span>
+        <span style="margin-left:auto;font-size:13px;color:rgba(255,255,255,.55)">6 races</span>
+      </div>
+      <div style="border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.02);padding:0 24px">
+        <div style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 110px 110px 140px;gap:16px;align-items:center;padding:14px 0 12px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px;font-weight:500;color:rgba(255,255,255,.55)">
+          <span>#</span><span>Agent</span><span style="text-align:right">Rating</span><span style="text-align:right">Races</span><span style="text-align:right">Wins</span><span style="text-align:right">Avg cost</span><span style="text-align:right">Avg time</span><span style="text-align:right">Rating trend</span>
+        </div>
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 110px 110px 140px;gap:16px;align-items:center;padding:16px 0;border-bottom:{{ r.rowBorder }}">
+            <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,.55)">{{ r.rank }}</span>
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:{{ r.color }};display:block"></span><span style="font-size:14px;font-weight:500">{{ r.name }}</span></div>
+            <span style="font-size:20px;font-weight:600;letter-spacing:-.03em;text-align:right">{{ r.rating }}</span>
+            <span style="font-size:14px;text-align:right">{{ r.races }}</span>
+            <span style="font-size:14px;text-align:right">{{ r.wins }}</span>
+            <span style="font-size:14px;text-align:right">{{ r.avgCost }}</span>
+            <span style="font-size:14px;text-align:right">{{ r.avgTime }}</span>
+            <svg viewBox="0 0 140 28" width="140" height="28" style="display:block;justify-self:end"><polyline points="{{ r.points }}" fill="none" stroke="{{ r.color }}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity=".85"></polyline><circle cx="{{ r.lastX }}" cy="{{ r.lastY }}" r="2.5" fill="{{ r.color }}"></circle></svg>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="Ladder empty" style="position:relative;background-image:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:32px 32px;padding:36px 0 48px;border-top:1px solid rgba(255,255,255,.08)">
+    <div style="width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;align-items:baseline;gap:12px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08)">
+        <span style="font-size:15px;font-weight:500">Ladder</span>
+        <span style="font-size:13px;color:rgba(255,255,255,.55)">shifan/gridloom</span>
+        <span style="margin-left:auto;font-size:13px;color:rgba(255,255,255,.55)">0 races</span>
+      </div>
+      <div style="border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.02);padding:0 24px">
+        <div style="display:grid;grid-template-columns:32px 1fr 100px 80px 80px 110px 110px 140px;gap:16px;align-items:center;padding:14px 0 12px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px;font-weight:500;color:rgba(255,255,255,.55)">
+          <span>#</span><span>Agent</span><span style="text-align:right">Rating</span><span style="text-align:right">Races</span><span style="text-align:right">Wins</span><span style="text-align:right">Avg cost</span><span style="text-align:right">Avg time</span><span style="text-align:right">Rating trend</span>
+        </div>
+        <div style="padding:72px 0;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <span style="font-size:14px;font-weight:500">No races yet.</span>
+          <span style="font-size:13px;color:rgba(255,255,255,.55)">Run one with <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;color:rgba(255,255,255,.75);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:2px 7px;border-radius:6px">bakeoff run owner/repo#123</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const C = { claude:'#F59E6B', codex:'#5EC8CE', opencode:'#E58BC7', gemini:'#9BCB6E' };
+    const hist = [
+      {id:'claude',name:'Claude Code',races:6,wins:4,avgCost:1.71,avgMs:389000,ratings:[1500,1516,1531,1524,1549,1580]},
+      {id:'codex',name:'Codex',races:6,wins:2,avgCost:0.88,avgMs:271000,ratings:[1500,1488,1502,1519,1508,1490]},
+      {id:'opencode',name:'OpenCode',races:6,wins:0,avgCost:1.04,avgMs:340000,ratings:[1500,1494,1481,1466,1442,1410]},
+      {id:'gemini',name:'Gemini CLI',races:6,wins:0,avgCost:0.57,avgMs:154000,ratings:[1500,1502,1476,1451,1398,1370]}
+    ];
+    const fmt = ms => { const s = Math.round(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+    const all = hist.flatMap(h => h.ratings), lo = Math.min(...all), hi = Math.max(...all);
+    const rows = hist.slice().sort((a,b)=>b.ratings[5]-a.ratings[5]).map((h,i) => {
+      const pts = h.ratings.map((r,j) => [4 + j*(132/5), 24 - (r-lo)/(hi-lo)*20]);
+      return { ...h, rank:i+1, color:C[h.id], rating:h.ratings[5], avgCost:`$${h.avgCost.toFixed(2)}`, avgTime:fmt(h.avgMs),
+        points: pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' '), lastX: pts[5][0].toFixed(1), lastY: pts[5][1].toFixed(1),
+        rowBorder: i === hist.length-1 ? 'none' : '1px solid rgba(255,255,255,.06)' };
+    });
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

@@ -25,6 +25,8 @@
 - Ranking: total desc, cost asc (null last), duration asc.
 - 2-week hard cap. Cut order is SPEC.md section 12. Tasks are grouped by day; if a day slips, the next day's tasks shift, the cut order does not.
 - Commit after every task. Tests via `bun test` (vitest) must be green before every commit.
+- Terminal: `design/TERMINAL.md` is the spec for the live view and final table. No emoji, no box drawing, `NO_COLOR` and non-TTY respected.
+- Visuals: `design/handoff/design_handoff_bakeoff/README.md` is the pixel-accurate spec for the Scoreboard, Race, Ladder and Share card screens. SPEC.md section 10 "Visual design" lists the agreed deviations. Component code in Tasks 25, 27, 29 and 31 is the data wiring; its layout and styling must be replaced by the handoff's CSS.
 
 ## Manual verification repo
 
@@ -74,8 +76,9 @@ If the org does not exist yet, create it in the GitHub UI first (Settings > Orga
 | `src/core/ladder.ts` | openskill update, display rating |
 | `src/cli/index.ts` | commander program |
 | `src/cli/commands/{run,doctor,init,share,ladder,merge}.ts` | one file per command |
-| `src/cli/render/table.ts` | terminal scoreboard + podium |
-| `src/cli/render/progress.ts` | clack spinners during a race |
+| `src/cli/render/style.ts` | ANSI color helpers (truecolor + 256 fallback, NO_COLOR), agent colors/names, clock/token/bar formatters |
+| `src/cli/render/table.ts` | final terminal table per `design/TERMINAL.md` |
+| `src/cli/render/progress.ts` | live in-place redraw per `design/TERMINAL.md` |
 | `src/cli/server.ts` | Bun.serve: `/`, `/events` SSE, `POST /abort/:driver` |
 | `src/cli/export.ts` | inject data into `dist/ui.html`, write `<id>.html` |
 | `src/render/card.tsx` | satori PNG card |
@@ -308,7 +311,7 @@ import { z } from 'zod';
 
 export const SCHEMA_VERSION = 1 as const;
 
-export const DriverIdSchema = z.enum(['claude', 'codex', 'opencode']);
+export const DriverIdSchema = z.enum(['claude', 'codex', 'opencode', 'gemini']); // gemini: schema slot only in v1
 export const AgentStatusSchema = z.enum(['running', 'ok', 'timeout', 'crashed', 'budget_exceeded']);
 export const ComponentIdSchema = z.enum(['visible_tests', 'hidden_tests', 'typecheck', 'lint', 'ci', 'diff', 'judge']);
 export const TamperRuleSchema = z.enum(['test_deleted', 'test_skipped', 'asserts_weakened', 'config_write', 'hidden_path_write']);
@@ -1885,7 +1888,7 @@ export function parseClaudeLine(line: string): { events: AgentEvent[]; result: C
 }
 
 export const claudeDriver: Driver = {
-  id: 'claude', displayName: 'Claude Code', color: '#D97757',
+  id: 'claude', displayName: 'Claude Code', color: '#F59E6B',
   async doctor() {
     const v = await exec('claude', ['--version']);
     if (v.code !== 0) return { found: false, version: null, authOk: false, notes: ['install: npm i -g @anthropic-ai/claude-code'] };
@@ -2274,29 +2277,130 @@ git add -A && git commit -m "feat(core): race orchestrator with events, publish,
 ### Task 15: `bakeoff run` + `bakeoff init`, first real PR (day-2 milestone)
 
 **Files:**
-- Create: `src/cli/commands/run.ts`, `src/cli/commands/init.ts`, `src/cli/render/progress.ts`
+- Create: `src/cli/commands/run.ts`, `src/cli/commands/init.ts`, `src/cli/render/style.ts`, `src/cli/render/progress.ts`, `test/cli/style.test.ts`
 - Modify: `src/cli/index.ts`
 
 **Interfaces:**
-- Produces: `runCommand(issueArg: string | undefined, opts: { agents?: string; budget?: string; timeout?: string; watch?: boolean; keepWorktrees?: boolean })`, `initCommand()`.
+- Produces: `style.ts`: `DRIVER_NAME`, `DRIVER_HEX`, `STATUS_HEX`, `colorEnabled(): boolean`, `paint(hex, s)`, `dim(s)`, `fmtClock(ms)` (`6:52`), `fmtClockPadded(ms)` (`02:14`), `fmtTok(tokens)` (`181k tok`), `fmtCost(n)` (`$1.20` / `n/a`), `spendBar(cost, budget, width = 20)`. `progress.ts`: `progressRenderer(out?): { onEvent(e: RaceEvent): void; stop(): void }`. `runCommand(issueArg: string | undefined, opts: { agents?: string; budget?: string; timeout?: string; watch?: boolean; keepWorktrees?: boolean })`, `initCommand()`.
 
-- [ ] **Step 1: Write progress.ts (clack spinners fed by RaceEvents)**
+- [ ] **Step 1: Write style.ts with a failing test, then progress.ts**
+
+```ts
+// test/cli/style.test.ts
+import { afterEach, describe, expect, it } from 'vitest';
+import { fmtClock, fmtClockPadded, fmtCost, fmtTok, paint, spendBar, colorEnabled } from '../../src/cli/render/style';
+
+describe('style', () => {
+  const env = { ...process.env };
+  afterEach(() => { process.env = { ...env }; });
+  it('formats clocks, tokens, cost', () => {
+    expect(fmtClock(412000)).toBe('6:52'); expect(fmtClock(93000)).toBe('1:33'); expect(fmtClockPadded(134000)).toBe('02:14');
+    expect(fmtTok({ input: 181000, output: 9400, cacheRead: 0, cacheWrite: 0 })).toBe('190k tok'); expect(fmtTok(null)).toBe('— tok');
+    expect(fmtCost(1.2)).toBe('$1.20'); expect(fmtCost(null)).toBe('n/a');
+  });
+  it('draws a 20-cell spend bar', () => {
+    process.env.NO_COLOR = '1';
+    expect(spendBar(1.2, 3)).toBe('▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱');
+    expect(spendBar(null, 3)).toBe('▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱');
+    expect(spendBar(9, 3)).toBe('▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰');
+  });
+  it('strips color under NO_COLOR and emits truecolor otherwise', () => {
+    process.env.NO_COLOR = '1';
+    expect(colorEnabled()).toBe(false); expect(paint('#F59E6B', 'x')).toBe('x');
+    delete process.env.NO_COLOR; process.env.FORCE_COLOR = '3';
+    expect(paint('#F59E6B', 'x')).toBe('\x1b[38;2;245;158;107mx\x1b[39m');
+  });
+});
+```
+
+Run: `bun test test/cli/style.test.ts` → FAIL. Then:
+
+```ts
+// src/cli/render/style.ts
+import type { AgentStatus, DriverId, TokenUsage } from '@contract';
+
+export const DRIVER_NAME: Record<DriverId, string> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', gemini: 'Gemini CLI' };
+export const DRIVER_HEX: Record<DriverId, string> = { claude: '#F59E6B', codex: '#5EC8CE', opencode: '#E58BC7', gemini: '#9BCB6E' };
+export const STATUS_HEX: Record<AgentStatus, string> = { running: '#60A5FA', ok: '#4ADE80', crashed: '#F87171', timeout: '#F87171', budget_exceeded: '#F87171' };
+export const STATUS_WORD: Record<AgentStatus, string> = { running: 'running', ok: 'done', crashed: 'crashed', timeout: 'timed out', budget_exceeded: 'over budget' };
+export const SOFT_RED = '#F87171';
+
+export function colorEnabled(out: { isTTY?: boolean } = process.stdout): boolean {
+  if (process.env.NO_COLOR) return false;
+  if (process.env.FORCE_COLOR && process.env.FORCE_COLOR !== '0') return true;
+  return !!out.isTTY;
+}
+const truecolor = () => /truecolor|24bit/i.test(process.env.COLORTERM ?? '') || process.env.FORCE_COLOR === '3';
+const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+const to256 = ([r, g, b]: [number, number, number]) => 16 + 36 * Math.round(r / 51) + 6 * Math.round(g / 51) + Math.round(b / 51);
+
+export function paint(hex: string, s: string): string {
+  if (!colorEnabled()) return s;
+  const c = rgb(hex);
+  return truecolor() ? `\x1b[38;2;${c[0]};${c[1]};${c[2]}m${s}\x1b[39m` : `\x1b[38;5;${to256(c)}m${s}\x1b[39m`;
+}
+export const dim = (s: string) => (colorEnabled() ? `\x1b[2m${s}\x1b[22m` : s);
+export const bold = (s: string) => (colorEnabled() ? `\x1b[1m${s}\x1b[22m` : s);
+
+export function fmtClock(ms: number): string { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+export function fmtClockPadded(ms: number): string { const s = Math.round(ms / 1000); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+export function fmtTok(t: TokenUsage | null): string { return t ? `${Math.round((t.input + t.output) / 1000)}k tok` : '— tok'; }
+export const fmtCost = (n: number | null) => (n === null ? 'n/a' : `$${n.toFixed(2)}`);
+export function spendBar(cost: number | null, budget: number, width = 20, hex = '#FFFFFF'): string {
+  const filled = cost === null ? 0 : Math.min(width, Math.round((cost / budget) * width));
+  return paint(hex, '▰'.repeat(filled)) + dim('▱'.repeat(width - filled));
+}
+```
 
 ```ts
 // src/cli/render/progress.ts
-import * as p from '@clack/prompts';
-import type { DriverId, RaceEvent } from '@contract';
+import { applyEvent, initialState, type RaceEvent, type RaceState } from '@contract';
+import { DRIVER_HEX, DRIVER_NAME, STATUS_HEX, STATUS_WORD, colorEnabled, dim, fmtClockPadded, fmtCost, fmtTok, paint, spendBar } from './style';
 
-export function progressRenderer(agents: DriverId[]) {
-  const spinners = new Map<DriverId, ReturnType<typeof p.spinner>>();
-  return (e: RaceEvent) => {
-    if (e.type === 'race.started') for (const a of agents) { const s = p.spinner(); s.start(`${a}: starting`); spinners.set(a, s); }
-    if (e.type === 'agent.progress') spinners.get(e.driver)?.message(`${e.driver}: ${e.costUsd === null ? 'cost n/a' : `$${e.costUsd.toFixed(2)}`} · ${e.filesTouched} files · ${e.lastAction}`);
-    if (e.type === 'agent.exited') { const s = spinners.get(e.driver); if (e.status === 'ok') s?.message(`${e.driver}: publishing`); else s?.stop(`${e.driver}: ${e.status}`); }
-    if (e.type === 'agent.pr_opened') spinners.get(e.driver)?.stop(`${e.driver}: PR ${e.prUrl}`);
+/** In-place live view per design/TERMINAL.md. Non-TTY: prints nothing (the final table still prints). */
+export function progressRenderer(out: NodeJS.WriteStream = process.stdout) {
+  let state: RaceState = initialState;
+  let drawn = 0;
+  const live = !!out.isTTY;
+  const startedAt = Date.now();
+  const width = () => out.columns ?? 100;
+
+  const frame = (): string[] => {
+    const lines: string[] = [];
+    const issue = state.issue ? `${state.repo?.owner}/${state.repo?.name} #${state.issue.number}  ${state.issue.title}` : '';
+    lines.push(`  ${paint('#F4F4F7', 'bakeoff')}  ${issue}`);
+    const running = state.agents.filter((a) => a.status === 'running').length;
+    const left = `  ${running} of ${state.agents.length} running`;
+    const right = `${fmtClockPadded(Date.now() - startedAt)} elapsed`;
+    lines.push(left + ' '.repeat(Math.max(1, Math.min(width(), 72) - left.length - right.length)) + right, '');
+    const budget = state.caps?.budgetUsd ?? 1;
+    for (const a of state.agents) {
+      const name = DRIVER_NAME[a.driver].padEnd(12);
+      const status = paint(STATUS_HEX[a.status], STATUS_WORD[a.status].padEnd(9));
+      const files = `${a.filesTouched} file${a.filesTouched === 1 ? '' : 's'}`;
+      const pr = a.prNumber ? `   PR #${a.prNumber}` : '';
+      lines.push(`  ${paint(DRIVER_HEX[a.driver], '●')} ${name}  ${status} ${fmtCost(a.costUsd).padStart(6)} ${spendBar(a.costUsd, budget, 20, DRIVER_HEX[a.driver])} ${fmtCost(budget)}   ${fmtTok(a.tokens).padStart(8)}   ${files}${pr}`);
+      const action = (a.lastAction || '').slice(0, Math.max(10, width() - 30));
+      lines.push(action ? `                            ${dim(action)}` : '', '');
+    }
+    return lines;
+  };
+  const redraw = () => {
+    if (!live) return;
+    const lines = frame();
+    if (drawn) out.write(`\x1b[${drawn}A\x1b[J`);
+    out.write(lines.join('\n') + '\n');
+    drawn = lines.length;
+  };
+  const timer = live ? setInterval(redraw, 1000) : null;
+  return {
+    onEvent(e: RaceEvent) { state = applyEvent(state, e); redraw(); },
+    stop() { if (timer) clearInterval(timer); if (live && drawn) { out.write(`\x1b[${drawn}A\x1b[J`); drawn = 0; } },
   };
 }
 ```
+
+`colorEnabled` is imported so `paint` inside `frame()` respects `NO_COLOR` on a TTY (the bar and dots print plain). Run: `bun test test/cli/style.test.ts && bun run typecheck` → pass.
 
 - [ ] **Step 2: Write run.ts and init.ts**
 
@@ -2339,10 +2443,12 @@ export async function runCommand(issueArg: string | undefined, opts: RunOpts): P
   p.log.info(`#${issue.info.number} ${issue.info.title}\nagents: ${agents.join(', ')} · budget $${caps.budgetUsd} · timeout ${opts.timeout ?? config.timeout} · run ${runId}`);
 
   const deps = defaultDeps();
-  deps.onEvent = progressRenderer(agents);
+  const live = progressRenderer();
+  deps.onEvent = live.onEvent;
   const rec = await runRace({ repoRoot: repo.root, repo, issue, config, agents, caps, runId, keepWorktrees: opts.keepWorktrees }, deps);
-  for (const a of rec.agents) p.log.message(`${a.driver}: ${a.status} · ${a.costUsd === null ? 'cost n/a' : `$${a.costUsd.toFixed(2)}`} · ${(a.durationMs / 1000).toFixed(0)}s · ${a.prUrl ?? 'no PR'}`);
-  p.outro(`Run record: ${NAMES.stateDir}/runs/${runId}.json`);
+  live.stop();
+  for (const a of rec.agents) console.log(`  ${a.driver.padEnd(10)} ${a.status.padEnd(9)} ${a.costUsd === null ? 'n/a' : `$${a.costUsd.toFixed(2)}`}  ${(a.durationMs / 1000).toFixed(0)}s  ${a.prUrl ?? 'no PR'}`);
+  console.log(`\n  Run record  ${NAMES.stateDir}/runs/${runId}.json`);
 }
 ```
 
@@ -2412,7 +2518,7 @@ gh issue create --title "paginate() returns one item too many" --body "paginate(
 bun run /path/to/bakeoff/src/cli/index.ts run 1 --agents claude --budget 1 --timeout 5m
 ```
 
-Expected: a spinner shows actions, then "claude: PR https://github.com/bakeoff-dev/scratch/pull/1". `gh pr view 1` shows labels `bakeoff` and `bakeoff-run:<id>`. `.bakeoff/runs/<id>.json` has `status: "ok"`, a `costUsd`, tokens, and `prUrl`. Take the screenshot.
+Expected: the live block redraws in place with a colored `●`, the spend bar creeping up, and the last action dimmed underneath; after exit the block clears and a plain line prints `claude  ok  $0.xx  NNs  https://github.com/bakeoff-dev/scratch/pull/1`. `gh pr view 1` shows labels `bakeoff` and `bakeoff-run:<id>`. `.bakeoff/runs/<id>.json` has `status: "ok"`, a `costUsd`, tokens, and `prUrl`. Take the screenshot.
 
 - [ ] **Step 5: Commit**
 
@@ -2524,7 +2630,7 @@ export function parseCodexLine(line: string): { events: AgentEvent[]; done: bool
 }
 
 export const codexDriver: Driver = {
-  id: 'codex', displayName: 'Codex', color: '#10A37F',
+  id: 'codex', displayName: 'Codex', color: '#5EC8CE',
   async doctor() {
     const v = await exec('codex', ['--version']);
     if (v.code !== 0) return { found: false, version: null, authOk: false, notes: ['install: npm i -g @openai/codex'] };
@@ -3238,35 +3344,40 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): comp
 - Modify: `src/cli/commands/run.ts` (print the table instead of per-agent lines)
 
 **Interfaces:**
-- Produces: `renderScoreboard(rec: RunRecord): string` (plain text, no ANSI, so it is testable and pasteable), `fmtCost(n: number | null): string` (`$1.42` or `n/a`), `fmtDuration(ms): string` (`6m52s`), `fmtComponent(c: ScoreComponent): string` (`50/50`, `n/a/10`, hidden when `max === 0`), `podiumLine(rec): string`.
+- Consumes: `style.ts` from Task 15.
+- Produces: `renderScoreboard(rec: RunRecord, opts?: { htmlPath?: string; opened?: boolean; ladder?: Ladder }): string` laid out per `design/TERMINAL.md` "Final table" (rank, name, total, cost, `m:ss`, tests, `+a -r`, files, `PR #n`, tamper flag in soft red; rank 1 in the winner's color; `Scoreboard` and `Ladder` footer lines when given), `flagLabel(f: TamperFlag): string` (`skipped test: export.test.ts`, `deleted test: …`, `weakened asserts: …`, `edited config: …`, `wrote hidden path: …`). Tests run with `NO_COLOR=1` so output is plain.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // test/cli/table.test.ts
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { fmtComponent, fmtCost, fmtDuration, podiumLine, renderScoreboard } from '../../src/cli/render/table';
+import { flagLabel, renderScoreboard } from '../../src/cli/render/table';
 import { RunRecordSchema } from '../../src/contract/schema';
 
 const rec = RunRecordSchema.parse(JSON.parse(readFileSync('src/contract/fixtures/run.json', 'utf8')));
+beforeAll(() => { process.env.NO_COLOR = '1'; });
 
 describe('table', () => {
-  it('formats helpers', () => {
-    expect(fmtCost(1.42)).toBe('$1.42'); expect(fmtCost(null)).toBe('n/a');
-    expect(fmtDuration(412000)).toBe('6m52s'); expect(fmtDuration(45000)).toBe('45s');
-    expect(fmtComponent({ id: 'ci', max: 10, awarded: null, detail: 'n/a' })).toBe('n/a/10');
-    expect(fmtComponent({ id: 'diff', max: 10, awarded: 9.7, detail: '' })).toBe('9.7/10');
+  it('labels tamper flags', () => {
+    expect(flagLabel({ rule: 'test_skipped', file: 'export.test.ts', detail: '' })).toBe('skipped test: export.test.ts');
+    expect(flagLabel({ rule: 'config_write', file: 'vitest.config.ts', detail: '' })).toBe('edited config: vitest.config.ts');
   });
-  it('renders every agent, the podium, and tamper flags', () => {
-    const out = renderScoreboard(rec);
-    expect(out).toContain('#7 Fix off-by-one in paginate()');
-    expect(out).toMatch(/claude\s+74\.7\/75/);
-    expect(out).toMatch(/codex\s+48\.7\/75/);
-    expect(out).toContain('opencode');
-    expect(out).toContain('timeout');
-    expect(out).toContain('TAMPER config_write vitest.config.ts');
-    expect(podiumLine(rec)).toBe('🥇 claude   🥈 codex');
+  it('renders the final table per design/TERMINAL.md', () => {
+    const out = renderScoreboard(rec, { htmlPath: '.bakeoff/runs/20260902-k7q2.html', opened: true });
+    const lines = out.split('\n');
+    expect(lines[0]).toBe('');
+    expect(lines[2]).toBe('  bakeoff  bakeoff-dev/scratch #7  Fix off-by-one in paginate()');
+    expect(out).toMatch(/^ {3}1 {2}Claude Code {4}74\.7 {3}\$1\.42 {3}6:52 {3}9\/9 {5}\+18 -4 {4}2 files {3}PR #12$/m);
+    expect(out).toMatch(/^ {3}2 {2}Codex {10}48\.7 {3}\$0\.97 {3}6:28 {3}9\/9 {5}\+11 -9 {4}3 files {3}PR #13 {3}edited config: vitest\.config\.ts$/m);
+    expect(out).toMatch(/^ {3}3 {2}OpenCode {8}0 {3}n\/a {5}20:00 {2}timed out$/m);
+    expect(out).toContain('  Scoreboard  .bakeoff/runs/20260902-k7q2.html  (opened)');
+    expect(out).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
+  });
+  it('adds the ladder line when given', () => {
+    const out = renderScoreboard(rec, { ladder: { schemaVersion: 1, entries: { claude: { driver: 'claude', mu: 0, sigma: 0, rating: 1240, races: 1, wins: 1, avgCostUsd: 1, avgDurationMs: 1, history: [] } } } });
+    expect(out).toContain('  Ladder      Claude Code 1240');
   });
 });
 ```
@@ -3275,48 +3386,55 @@ describe('table', () => {
 
 ```ts
 // src/cli/render/table.ts
-import type { RunRecord, ScoreComponent } from '@contract';
+import type { Ladder, LadderEntry, RunRecord, TamperFlag } from '@contract';
+import { DRIVER_HEX, DRIVER_NAME, SOFT_RED, STATUS_WORD, fmtClock, fmtCost, paint } from './style';
 
-export const fmtCost = (n: number | null) => (n === null ? 'n/a' : `$${n.toFixed(2)}`);
-export function fmtDuration(ms: number): string {
-  const s = Math.round(ms / 1000); const m = Math.floor(s / 60);
-  return m > 0 ? `${m}m${String(s % 60).padStart(2, '0')}s` : `${s}s`;
-}
-export const fmtComponent = (c: ScoreComponent) => `${c.awarded === null ? 'n/a' : String(c.awarded)}/${c.max}`;
-const MEDALS = ['🥇', '🥈', '🥉'];
+const FLAG_WORD: Record<TamperFlag['rule'], string> = { test_skipped: 'skipped test', test_deleted: 'deleted test', asserts_weakened: 'weakened asserts', config_write: 'edited config', hidden_path_write: 'wrote hidden path' };
+export const flagLabel = (f: TamperFlag) => `${FLAG_WORD[f.rule]}: ${f.file}`;
 
-export function podiumLine(rec: RunRecord): string {
-  return rec.agents.filter((a) => a.rank !== null).sort((a, b) => a.rank! - b.rank!).slice(0, 3)
-    .map((a) => `${MEDALS[a.rank! - 1]} ${a.driver}`).join('   ');
-}
+type Cell = { text: string; align?: 'right' };
+const pad = (c: Cell, w: number) => (c.align === 'right' ? c.text.padStart(w) : c.text.padEnd(w));
 
-function row(cells: string[], widths: number[]): string {
-  return cells.map((c, i) => c.padEnd(widths[i] ?? c.length)).join('  ').trimEnd();
-}
-export function renderScoreboard(rec: RunRecord): string {
-  const head = ['agent', 'total', 'tests', 'hidden', 'types', 'lint', 'ci', 'diff', 'cost', 'time', 'pr'];
-  const rows = [...rec.agents].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99)).map((a) => {
-    const c = (id: ScoreComponent['id']) => { const x = a.score?.components.find((k) => k.id === id); return !x || x.max === 0 ? '-' : fmtComponent(x); };
-    return [a.driver, a.status === 'ok' && a.score ? `${a.score.total}/${a.score.maxPossible}` : a.status,
-      c('visible_tests'), c('hidden_tests'), c('typecheck'), c('lint'), c('ci'), c('diff'), fmtCost(a.costUsd), fmtDuration(a.durationMs), a.prUrl ? `#${a.prNumber}` : '-'];
+export function renderScoreboard(rec: RunRecord, opts: { htmlPath?: string; opened?: boolean; ladder?: Ladder } = {}): string {
+  const ordered = [...rec.agents].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+  const rows: Cell[][] = ordered.map((a, i) => {
+    const rank = a.rank ?? i + 1;
+    const cells: Cell[] = [{ text: String(rank), align: 'right' }, { text: DRIVER_NAME[a.driver] }, { text: a.score ? String(a.score.total) : '0', align: 'right' }, { text: fmtCost(a.costUsd) }, { text: fmtClock(a.durationMs) }];
+    if (a.status === 'ok' && a.score) {
+      const tests = a.score.components.find((c) => c.id === 'visible_tests')?.detail.split(',')[0]?.replace(' passed', '') ?? '';
+      cells.push({ text: tests }, { text: `+${a.linesAdded} -${a.linesRemoved}` }, { text: `${a.filesTouched.length} file${a.filesTouched.length === 1 ? '' : 's'}` }, { text: a.prNumber ? `PR #${a.prNumber}` : '' });
+      const flag = a.score.tamperFlags[0];
+      if (flag) cells.push({ text: paint(SOFT_RED, flagLabel(flag)) });
+    } else cells.push({ text: STATUS_WORD[a.status] });
+    return cells;
   });
-  const widths = head.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i]!.length)));
-  const lines = [`#${rec.issue.number} ${rec.issue.title}`, `${rec.repo.owner}/${rec.repo.name} · run ${rec.id}`, '', row(head, widths), row(widths.map((w) => '-'.repeat(w)), widths), ...rows.map((r) => row(r, widths)), ''];
-  for (const a of rec.agents) for (const f of a.score?.tamperFlags ?? []) lines.push(`TAMPER ${f.rule} ${f.file} (${a.driver}): ${f.detail}`);
-  if (rec.baseline.testsGreen === false) lines.push(`WARNING tests were already failing on ${rec.repo.baseSha.slice(0, 7)}`);
-  lines.push('', podiumLine(rec));
-  return lines.join('\n');
+  const widths: number[] = [];
+  for (const r of rows) r.forEach((c, i) => { widths[i] = Math.max(widths[i] ?? 0, c.text.replace(/\x1b\[[0-9;]*m/g, '').length); });
+  const winner = rec.winner;
+  const body = rows.map((r, i) => {
+    const line = '   ' + r.map((c, j) => pad(c, widths[j]!)).join('  ').trimEnd();
+    return ordered[i]!.driver === winner && ordered[i]!.rank === 1 ? paint(DRIVER_HEX[winner], line) : line;
+  });
+  const out = ['', '', `  bakeoff  ${rec.repo.owner}/${rec.repo.name} #${rec.issue.number}  ${rec.issue.title}`, '', ...body, ''];
+  if (opts.htmlPath) out.push(`  Scoreboard  ${opts.htmlPath}${opts.opened ? '  (opened)' : ''}`);
+  if (opts.ladder) {
+    const entries = Object.values(opts.ladder.entries).filter((e): e is LadderEntry => !!e).sort((a, b) => b.rating - a.rating);
+    out.push(`  Ladder      ${entries.map((e) => `${DRIVER_NAME[e.driver]} ${e.rating}`).join('  ')}`);
+  }
+  if (rec.baseline.testsGreen === false) out.push('', paint(SOFT_RED, `  Tests were already failing on ${rec.repo.baseSha.slice(0, 7)}; visible-test points are unreliable for this run.`));
+  out.push('', '');
+  return out.join('\n');
 }
 ```
 
-In `run.ts`, replace the per-agent `p.log.message` loop with `console.log(renderScoreboard(rec))`.
+Column widths are computed from the row content, so the exact spacing in the test regexes assumes the fixture values; if you change the fixture, update the regexes. In `run.ts`, replace the per-agent `console.log` loop with `console.log(renderScoreboard(rec))`; Task 26 adds `htmlPath`, Task 30 adds `ladder`.
 
 - [ ] **Step 3: Run tests, race on scratch, commit**
 
 ```bash
 bun test && bun run typecheck
 # in scratch/: bun run /path/to/bakeoff/src/cli/index.ts run 1 --agents claude,codex --budget 1 --timeout 5m
-git add -A && git commit -m "feat(cli): terminal scoreboard and podium"
+git add -A && git commit -m "feat(cli): final terminal table per design/TERMINAL.md"
 ```
 
 Post the first raw result.
@@ -3426,7 +3544,7 @@ export function parseOpencodeStats(text: string): { tokens: TokenUsage; model: s
 }
 
 export const opencodeDriver: Driver = {
-  id: 'opencode', displayName: 'OpenCode', color: '#7C3AED',
+  id: 'opencode', displayName: 'OpenCode', color: '#E58BC7',
   async doctor() {
     const v = await exec('opencode', ['--version']);
     if (v.code !== 0) return { found: false, version: null, authOk: false, notes: ['install: npm i -g opencode-ai'] };
@@ -3478,6 +3596,29 @@ Post the "tests don't lie" result.
 - Consumes: `@contract` (schemas, reducer, fixtures).
 - Produces: `window.__BAKEOFF__: { mode: 'static'; events: RaceEvent[] } | { mode: 'live'; eventsUrl: string }` read by `ui/src/data.ts` `loadBootstrap(): Bootstrap` (from `#bakeoff-data` script tag, else `window.__BAKEOFF__`, else dev fixture), `useRaceState(bootstrap): RaceState` hook. Build output `dist/ui.html` containing the literal marker `<!--BAKEOFF_DATA-->` just before `</head>` (export injects there).
 
+- [ ] **Step 0: Read the handoff and write the tokens**
+
+Read `design/handoff/design_handoff_bakeoff/README.md` end to end and open `standalone/Bakeoff Scoreboard.html` in a browser. Write the tokens exactly as the README states them:
+
+```css
+/* ui/src/tokens.css  (values verbatim from the design handoff README) */
+:root {
+  --bg: #0A0A0F; --text: #F4F4F7; --muted: rgba(255,255,255,.55); --dim: rgba(255,255,255,.45);
+  --hairline: rgba(255,255,255,.08); --divider: rgba(255,255,255,.06); --surface: rgba(255,255,255,.02); --surface-2: rgba(255,255,255,.025); --track: rgba(255,255,255,.06);
+  --r-surface: 12px; --r-control: 6px; --r-pill: 999px; --r-seg: 3px; --r-card: 16px;
+  --c-claude: #F59E6B; --c-codex: #5EC8CE; --c-opencode: #E58BC7; --c-gemini: #9BCB6E;
+  --s-running: #60A5FA; --s-running-bg: rgba(96,165,250,.12); --s-done: #4ADE80; --s-done-bg: rgba(74,222,128,.12); --s-crashed: #F87171; --s-crashed-bg: rgba(248,113,113,.12);
+  --plus: #4ADE80; --minus: #F87171; --penalty: rgba(248,113,113,.65);
+  --seg-tests: rgba(214,224,255,.62); --seg-hidden: rgba(176,196,240,.5); --seg-lint: rgba(160,214,214,.4); --seg-ci: rgba(206,196,236,.32); --seg-diff: rgba(220,208,180,.26); --seg-judge: rgba(255,255,255,.18); --seg-zero: rgba(255,255,255,.06); --seg-na-border: rgba(255,255,255,.18);
+  --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif; --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+html { background: var(--bg); color: var(--text); font-family: var(--font); font-feature-settings: 'tnum'; }
+.page { min-width: 1200px; background-image: linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px); background-size: 32px 32px; }
+.col { width: 1200px; margin: 0 auto; padding: 36px 0 64px; }
+```
+
+Field mapping from the contract to the handoff's names: `agents[].score.total` → score; `score.maxPossible` → the denominator (not 100); `score.components` → `breakdown` (`visible_tests`→tests, `hidden_tests`→hidden, `typecheck`+`lint`→lint, `ci`, `diff`, `judge`; `awarded: null`→n/a dashed segment; `awarded: 0` with `max > 0`→`--seg-zero`); `score.tamperPenalty`→penalty zone width `|penalty| / 25`; `score.tamperFlags`→red receipts; `linesAdded/linesRemoved`→`+41 −12`; `filesTouched.length`→files; `visible_tests.detail`→`48/48 tests`; `exitCode`→`exit ok` / `exit 1`; `status`→pill; `prNumber`→`View PR #143`.
+
 - [ ] **Step 1: Write vite.config.ts, index.html, theme, data loader, and its test**
 
 ```ts
@@ -3503,6 +3644,8 @@ export default defineConfig({
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Bakeoff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <!--BAKEOFF_DATA-->
 </head>
 <body class="bg-zinc-950 text-zinc-100"><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
@@ -3515,9 +3658,10 @@ After build, rename `dist/index.html` to `dist/ui.html` in the `build:ui` script
 // ui/src/theme.ts
 import type { DriverId } from '@contract';
 export const DRIVER_META: Record<DriverId, { name: string; color: string }> = {
-  claude: { name: 'Claude Code', color: '#D97757' },
-  codex: { name: 'Codex', color: '#10A37F' },
-  opencode: { name: 'OpenCode', color: '#7C3AED' },
+  claude: { name: 'Claude Code', color: '#F59E6B' },
+  codex: { name: 'Codex', color: '#5EC8CE' },
+  opencode: { name: 'OpenCode', color: '#E58BC7' },
+  gemini: { name: 'Gemini CLI', color: '#9BCB6E' },
 };
 export const COMPONENT_LABEL: Record<string, string> = { visible_tests: 'Tests', hidden_tests: 'Hidden', typecheck: 'Types', lint: 'Lint', ci: 'CI', diff: 'Diff', judge: 'Judge (subjective)' };
 export const fmtCost = (n: number | null) => (n === null ? 'cost n/a' : `$${n.toFixed(2)}`);
@@ -3586,6 +3730,7 @@ Run: `bun test test/ui/data.test.ts` → FAIL until `ui/src/data.ts` exists.
 // ui/src/main.tsx
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import './tokens.css';
 import './styles.css';
 import { App } from './App';
 if (import.meta.env.DEV) await import('../dev-data');
@@ -3757,16 +3902,20 @@ export function Banner({ tone, children }: { tone: 'warn' | 'info'; children: Re
 }
 ```
 
-- [ ] **Step 3: Run test, build, look at it**
+- [ ] **Step 3: Restyle to the handoff**
+
+Replace the Tailwind classes in `Scoreboard.tsx`, `Podium.tsx`, `ComponentBars.tsx`, `Receipts.tsx`, `TamperFlags.tsx` and `Banner.tsx` with the handoff's Scoreboard layout: header row (title 15/500, repo + run muted 13, right `Finished` pill); podium grid `1.6fr 1fr` (winner surface with inner glow and `radial-gradient` page glow in the winner's color, score 136/700 with `/ {maxPossible}` 20 muted, Cost / Duration / Tests stat pairs, white `View PR #n` button; right column three rows rank | dot + name + pill | `$0.92 · 4:58 · 48/48` | score 32/700); breakdown surface with `150px 1fr 48px` rows, `1fr 4fr` bar grid whose left cell is the penalty zone with a 1px zero line, 6px segments with 2px gaps, receipts line indented 20%, `No score, run crashed` for non-ok agents; footer ghost buttons `Share card` / `Copy results`. Copy the CSS from `design/handoff/design_handoff_bakeoff/standalone/Bakeoff Scoreboard.html` into `ui/src/screens/scoreboard.css` and adapt selectors; keep the data wiring from Step 2. Load-time motion: page glow `opacity 0→1` 1.6s ease-out, winner score counts up over 1.4s cubic ease-out, nothing else animates.
+
+- [ ] **Step 4: Run test, build, look at it**
 
 ```bash
 bun test && bun run typecheck && bun run build:ui && grep -c 'BAKEOFF_DATA' dist/ui.html
 bunx vite --config ui/vite.config.ts   # open the printed URL, Scoreboard tab shows the fixture: claude 74.7, codex 48.7 with a red tamper segment, opencode timeout with log tail
 ```
 
-Expected: `grep` prints 1. Screenshot the scoreboard.
+Expected: `grep` prints 1. Put the dev-server tab beside `standalone/Bakeoff Scoreboard.html`; they should match except for the agreed deviations. Screenshot the scoreboard.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(ui): vite single-file app with scoreboard screen"
@@ -3834,7 +3983,7 @@ export function exportRun(repoRoot: string, runId: string): string {
 }
 ```
 
-In `run.ts` after the race: `const html = exportRun(repo.root, runId); p.log.success(\`Scoreboard: ${html}\`)`. Add `program.command('export <id>').action((id) => console.log(exportRun(detectRoot(), id)))` where `detectRoot` is `must('git', ['rev-parse','--show-toplevel'])`.
+In `run.ts` after the race: `const html = exportRun(repo.root, runId);` then `console.log(renderScoreboard(rec, { htmlPath: relative(repo.root, html), opened: !!opts.watch }))` (replace the earlier call). Add `program.command('export <id>').action((id) => console.log(exportRun(detectRoot(), id)))` where `detectRoot` is `must('git', ['rev-parse','--show-toplevel'])`.
 
 - [ ] **Step 3: Run tests, export the last scratch run, open it, commit**
 
@@ -3857,13 +4006,13 @@ git add -A && git commit -m "feat(cli): static html scoreboard export"
 
 - [ ] **Step 1: Bundle a font**
 
-satori needs font data. Download Inter once into the package (permitted by its OFL license):
+satori needs font data. The handoff specifies Geist (OFL, by Vercel). Download the static weights once into the package:
 
 ```bash
-mkdir -p src/render/fonts && curl -L -o src/render/fonts/Inter-Bold.ttf https://github.com/rsms/inter/raw/master/docs/font-files/Inter-Bold.otf && curl -L -o src/render/fonts/Inter-Regular.ttf https://github.com/rsms/inter/raw/master/docs/font-files/Inter-Regular.otf && ls -la src/render/fonts
+mkdir -p src/render/fonts && cd "$(mktemp -d)" && gh release download -R vercel/geist-font --pattern '*.zip' && unzip -o -q *.zip && find . -iname 'Geist-Regular.*' -o -iname 'Geist-Bold.*' | grep -Ei '\.(ttf|otf)$' | head -4
 ```
 
-If those URLs 404, fetch from `https://rsms.me/inter/download/` and unzip the two static OTFs. Add `"files": ["dist", "src/render/fonts", "README.md"]` in package.json.
+Copy `Geist-Regular` and `Geist-Bold` (ttf or otf, either works with satori) to `src/render/fonts/Geist-Regular.ttf` and `src/render/fonts/Geist-Bold.ttf`. If the release has only a variable font, download the static instances from https://vercel.com/font instead. Add `"files": ["dist", "src/render/fonts", "README.md"]` in package.json.
 
 ```ts
 // src/render/fonts.ts
@@ -3872,8 +4021,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 export const fonts = () => [
-  { name: 'Inter', data: readFileSync(join(here, 'fonts', 'Inter-Regular.ttf')), weight: 400 as const, style: 'normal' as const },
-  { name: 'Inter', data: readFileSync(join(here, 'fonts', 'Inter-Bold.ttf')), weight: 700 as const, style: 'normal' as const },
+  { name: 'Geist', data: readFileSync(join(here, 'fonts', 'Geist-Regular.ttf')), weight: 400 as const, style: 'normal' as const },
+  { name: 'Geist', data: readFileSync(join(here, 'fonts', 'Geist-Bold.ttf')), weight: 700 as const, style: 'normal' as const },
 ];
 ```
 
@@ -3901,6 +4050,8 @@ describe('card', () => {
 
 - [ ] **Step 3: Run to verify failure, then write card.tsx and share.ts**
 
+Layout per handoff section 4 (`design/handoff/design_handoff_bakeoff/README.md`): 1200×630, bg `#0A0A0F`, padding 56/64, no grid texture, radial glow 820×620 in the winner's color behind the left card, title 26/500 + repo 20 muted, grid `1.25fr 1fr` gap 40, winner card 16px radius with inner glow and padding 32/36 (14px dot + name 28/500, score 180/700 −0.05em + `/ {maxPossible}` 28 muted, Cost/Duration/Tests 16 muted over 30/600), right column three equal rows (rank 18 muted | 10px dot + name 22/500 over `$0.92 · 4:58` 16 muted | score 52/700), wordmark bottom-right (8px white square + `bakeoff` 16/600). The JSX below is the data wiring; set the styles from that spec. satori supports flexbox and `linear-gradient`/`radial-gradient` backgrounds, not CSS grid: build the two-column layout with `display: flex`.
+
 ```tsx
 // src/render/card.tsx
 import satori from 'satori';
@@ -3908,7 +4059,7 @@ import { Resvg } from '@resvg/resvg-js';
 import type { RunRecord } from '@contract';
 import { fonts } from './fonts';
 
-const META: Record<string, { name: string; color: string }> = { claude: { name: 'Claude Code', color: '#D97757' }, codex: { name: 'Codex', color: '#10A37F' }, opencode: { name: 'OpenCode', color: '#7C3AED' } };
+const META: Record<string, { name: string; color: string }> = { claude: { name: 'Claude Code', color: '#F59E6B' }, codex: { name: 'Codex', color: '#5EC8CE' }, opencode: { name: 'OpenCode', color: '#E58BC7' }, gemini: { name: 'Gemini CLI', color: '#9BCB6E' } };
 const cost = (n: number | null) => (n === null ? 'cost n/a' : `$${n.toFixed(2)} est.`);
 const dur = (ms: number) => { const s = Math.round(ms / 1000), m = Math.floor(s / 60); return m ? `${m}m${String(s % 60).padStart(2, '0')}s` : `${s}s`; };
 
@@ -3916,7 +4067,7 @@ export async function renderCardSvg(rec: RunRecord): Promise<string> {
   const ordered = [...rec.agents].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
   const flags = rec.agents.flatMap((a) => (a.score?.tamperFlags ?? []).map((f) => `${META[a.driver]!.name}: ${f.rule} ${f.file}`));
   return satori(
-    <div style={{ width: 1200, height: 630, display: 'flex', flexDirection: 'column', background: '#09090b', color: '#fafafa', padding: 48, fontFamily: 'Inter' }}>
+    <div style={{ width: 1200, height: 630, display: 'flex', flexDirection: 'column', background: '#09090b', color: '#fafafa', padding: 48, fontFamily: 'Geist' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22, color: '#a1a1aa' }}>
         <span>BAKEOFF · {rec.repo.owner}/{rec.repo.name}</span><span>run {rec.id}</span>
       </div>
@@ -4079,6 +4230,10 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(cli): SSE ser
 **Interfaces:**
 - Consumes: `RaceState.agents: AgentLane[]`, `state.caps.budgetUsd`, `state.caps.timeoutMs`.
 - Produces: `Race` screen: top bar "N of M running", one `Lane` per agent with timer (elapsed since `startedAt` while running, else `durationMs`), `SpendBar` (`costUsd / budgetUsd`; "cost n/a" bar rendered striped when null), tokens, files touched, `lastAction`, `StatusPill`, click to expand `LogDrawer` (shows `record.agents[i].logTail` when finished; otherwise "log available when the agent exits"), and an "Abort" button visible only in live mode that POSTs `/abort/<driver>`.
+
+- [ ] **Step 0: Visual spec**
+
+Handoff section 2 (`design/handoff/design_handoff_bakeoff/README.md`, `standalone/Bakeoff Race.html`): one surface containing stacked lanes with `.06` dividers; lane row 1 grid `220px 1fr auto` (8px dot + name 15/500 + pill | last action 13 dim, single-line ellipsis | elapsed 18/600, `118k / 6.1k` tokens as input / output, files count); row 2 grid `1fr 64px` with a 6px cost track, fill `linear-gradient(90deg, <agent>33, <agent>CC)` sized `costUsd / budget` with `transition: width .6s linear`, cost label 13/600 in the agent color above the fill's right end, 1×12px budget marker and `$3.00 budget` 12 muted; log drawer in Geist Mono 12/1.5 dim with `Error` lines red and `✓` lines green. Header right text `N of M running`. Cost `null` renders the track empty with the label `cost n/a`. The components below are the wiring; style them from the handoff.
 
 - [ ] **Step 1: Write useNow and the components**
 
@@ -4300,7 +4455,7 @@ export async function ladderCommand(): Promise<void> {
 }
 ```
 
-In `race.ts` after `record.finishedAt = at()`: `writeLadder(repoRoot, updateLadder(readLadder(repoRoot), record))`. Register `program.command('ladder').action(ladderCommand)`.
+In `race.ts` after `record.finishedAt = at()`: `writeLadder(repoRoot, updateLadder(readLadder(repoRoot), record))`. Register `program.command('ladder').action(ladderCommand)`. In `run.ts`, pass `ladder: readLadder(repo.root)` to `renderScoreboard` so the `Ladder` footer line prints.
 
 - [ ] **Step 3: Run tests, commit**
 
@@ -4319,15 +4474,20 @@ bun test && bun run typecheck && git add -A && git commit -m "feat: openskill la
 **Interfaces:**
 - Produces: `Ladder` screen: table (agent, rating, races, wins, avg cost, avg time) with a `Sparkline` of `history[].rating` per row. Data: static → `bootstrap.ladder`; live → fetch `/ladder.json` once when `state.finished` flips.
 
+- [ ] **Step 0: Visual spec**
+
+Handoff section 3 (`design/handoff/design_handoff_bakeoff/README.md`, `standalone/Bakeoff Ladder.html`): header `Ladder` 15/500, repo muted, `N races` right; table surface with columns `32px 1fr 100px 80px 80px 110px 110px 140px`, gap 16, header 12/500 muted, rows padding 16 with `.06` dividers; rating 20/600 −0.03em right-aligned; sparkline 140×28, 1.5px polyline in the agent color at .85 opacity with a 2.5px end dot; sorted by rating. Empty state: 72px vertical padding, `No races yet.` 14/500 and `Run one with bakeoff run owner/repo#123` 13 muted with the command in a Geist Mono chip. Avg time formats as `6:29`.
+
 - [ ] **Step 1: Sparkline and screen**
 
 ```tsx
 // ui/src/components/Sparkline.tsx
 export function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) return <svg width="120" height="28" />;
+  if (values.length < 2) return <svg width="140" height="28" />;
   const min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
-  const pts = values.map((v, i) => `${(i / (values.length - 1)) * 118 + 1},${27 - ((v - min) / span) * 26}`).join(' ');
-  return <svg width="120" height="28"><polyline fill="none" stroke={color} strokeWidth="2" points={pts} /></svg>;
+  const xy = values.map((v, i) => [(i / (values.length - 1)) * 136 + 2, 26 - ((v - min) / span) * 24] as const);
+  const last = xy[xy.length - 1]!;
+  return <svg width="140" height="28"><polyline fill="none" stroke={color} strokeOpacity="0.85" strokeWidth="1.5" points={xy.map(([x, y]) => `${x},${y}`).join(' ')} /><circle cx={last[0]} cy={last[1]} r="2.5" fill={color} /></svg>;
 }
 ```
 
@@ -4707,7 +4867,7 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): blin
 - **Section 7 ladder**: Task 30 (`displayRating`, exclusion, history on non-rated runs, idempotency).
 - **Section 8 drivers + budget**: meter Task 8, pricing Task 9, Claude Task 12 (also `--max-budget-usd`), Codex Task 16, OpenCode Task 24, unknown model → null cost Task 8/9, `maxTurns` ignored for Claude Task 12.
 - **Section 9 process**: Task 8 (detached, SIGTERM then SIGKILL after 10s, `budget_exceeded`, `aborted`).
-- **Section 10 CLI/UI/outputs**: `run/doctor/init` Task 11/15, `share` Task 27, `ladder` Task 30, `merge` Task 34, `export` Task 26, server Task 28, Race screen Task 29, Scoreboard Task 25, Ladder screen Task 31, card Task 27, terminal table Task 23, copy-markdown Task 25.
+- **Section 10 CLI/UI/outputs**: `run/doctor/init` Task 11/15, `share` Task 27, `ladder` Task 30, `merge` Task 34, `export` Task 26, server Task 28, Race screen Task 29, Scoreboard Task 25, Ladder screen Task 31, card Task 27, terminal live view Task 15 and final table Task 23 (both per `design/TERMINAL.md`), copy-markdown Task 25.
 - **Section 11 testing**: fixture repos helper Task 10; every task carries its tests.
 - **Section 12 cut order**: judge (36), merge (34), replay (not planned; cut pre-emptively), ladder screen (31), race view (28-29), OpenCode (24), hidden tests (18/35), CI (33) are all separable tasks at the tail of their day.
 

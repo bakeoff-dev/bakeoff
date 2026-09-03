@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+<template id="__bundler_thumbnail" data-bg-color="#0A0A0F"><svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg"><circle cx="440" cy="400" r="260" fill="#F59E6B" opacity=".12"/><circle cx="400" cy="400" r="34" fill="#F59E6B"/><text x="480" y="456" font-family="Geist,system-ui,sans-serif" font-size="180" font-weight="700" fill="#F4F4F7" letter-spacing="-8">85</text></svg></template>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#0A0A0F;color:#F4F4F7;font-family:'Geist',system-ui,sans-serif;font-feature-settings:'tnum' 1;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+a{color:#F4F4F7;text-decoration:none}a:hover{color:#F4F4F7}
+</style>
+</helmet>
+<div style="position:relative;min-height:100vh;min-width:1200px;overflow:clip;background-image:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:32px 32px">
+  <div style="position:relative;width:1200px;margin:0 auto;padding:36px 0 64px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:center;gap:12px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08)">
+      <span style="font-size:15px;font-weight:500">Image export ignores custom DPI setting</span>
+      <span style="font-size:13px;color:rgba(255,255,255,.55)">shifan/gridloom #142</span>
+      <span style="font-size:13px;color:rgba(255,255,255,.55)">r_7f3a</span>
+      <span style="margin-left:auto;font-size:13px;color:rgba(255,255,255,.55)">{{ runningLabel }}</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.02);overflow:hidden">
+      <sc-for list="{{ lanes }}" as="a" hint-placeholder-count="4">
+        <div style="border-bottom:{{ a.rowBorder }}">
+          <div onClick="{{ a.toggle }}" style="cursor:pointer;padding:18px 24px 16px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:grid;grid-template-columns:220px 1fr auto;align-items:center;gap:16px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:8px;height:8px;border-radius:50%;background:{{ a.color }};display:block"></span>
+                <span style="font-size:15px;font-weight:500">{{ a.name }}</span>
+                <span style="font-size:11px;font-weight:500;color:{{ a.pillFg }};background:{{ a.pillBg }};padding:2px 8px;border-radius:999px">{{ a.pill }}</span>
+              </div>
+              <span style="font-size:13px;color:rgba(255,255,255,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">{{ a.lastAction }}</span>
+              <div style="display:flex;gap:28px;align-items:baseline">
+                <div style="display:flex;gap:6px;align-items:baseline"><span style="font-size:18px;font-weight:600;letter-spacing:-.02em">{{ a.elapsed }}</span><span style="font-size:12px;font-weight:500;color:rgba(255,255,255,.55)">elapsed</span></div>
+                <div style="display:flex;gap:6px;align-items:baseline"><span style="font-size:14px;font-weight:500">{{ a.tokens }}</span><span style="font-size:12px;font-weight:500;color:rgba(255,255,255,.55)">tokens</span></div>
+                <div style="display:flex;gap:6px;align-items:baseline"><span style="font-size:14px;font-weight:500">{{ a.files }}</span><span style="font-size:12px;font-weight:500;color:rgba(255,255,255,.55)">files</span></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 64px;align-items:center;gap:14px">
+              <div style="position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.06)">
+                <span style="position:absolute;left:0;top:0;height:6px;width:{{ a.fillW }};border-radius:3px;background:linear-gradient(90deg,{{ a.color }}33,{{ a.color }}CC);display:block;transition:width .6s linear"></span>
+                <span style="position:absolute;left:{{ a.fillW }};top:-16px;transform:translateX(-100%);font-size:13px;font-weight:600;letter-spacing:-.02em;color:{{ a.color }};transition:left .6s linear;white-space:nowrap">{{ a.cost }}</span>
+                <span style="position:absolute;right:0;top:-3px;width:1px;height:12px;background:rgba(255,255,255,.35);display:block"></span>
+              </div>
+              <span style="font-size:12px;font-weight:500;color:rgba(255,255,255,.55);text-align:right">$3.00 budget</span>
+            </div>
+          </div>
+          <sc-if value="{{ a.open }}" hint-placeholder-val="{{ false }}">
+            <div style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.06);padding:14px 24px 16px;display:flex;flex-direction:column;gap:5px;font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;line-height:1.5;color:rgba(255,255,255,.45)">
+              <sc-for list="{{ a.log }}" as="line" hint-placeholder-count="3">
+                <span style="white-space:pre;color:{{ line.color }}">{{ line.text }}</span>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { open: { gemini: true }, t: 0 };
+  componentDidMount() { this.iv = setInterval(() => this.setState(s => ({ t: s.t + 1 })), 1000); }
+  componentWillUnmount() { clearInterval(this.iv); }
+  renderVals() {
+    const C = { claude:'#F59E6B', codex:'#5EC8CE', opencode:'#E58BC7', gemini:'#9BCB6E' };
+    const pills = { done:['Done','#4ADE80','rgba(74,222,128,.12)'], running:['Running','#60A5FA','rgba(96,165,250,.12)'], crashed:['Crashed','#F87171','rgba(248,113,113,.12)'] };
+    const t = this.state.t, budget = 3;
+    const agents = [
+      {id:'claude',name:'Claude Code',status:'running',costUsd:1.20 + t*0.0021,elapsedMs:252000 + t*1000,tokens:{input:118000 + t*310,output:6100 + t*14},filesTouched:3,
+        lastAction:'Running vitest src/export/__tests__/dpi.test.ts',
+        log:['> npm test -- src/export/__tests__/dpi.test.ts','✓ export respects custom DPI (212ms)','✓ default DPI falls back to 72 (18ms)','edit src/export/dpi.ts  +14 −3']},
+      {id:'codex',name:'Codex',status:'done',costUsd:0.92,elapsedMs:298000,tokens:{input:96000,output:6100},filesTouched:9,
+        lastAction:'Opened PR #144',
+        log:['> git push origin codex/fix-dpi-export','Opened PR #144 · 9 files changed, +210 −34','exit 0']},
+      {id:'opencode',name:'OpenCode',status:'running',costUsd:0.80 + t*0.0016,elapsedMs:238000 + t*1000,tokens:{input:88000 + t*260,output:5400 + t*11},filesTouched:4,
+        lastAction:'Editing src/export/render.ts',
+        log:['edit src/export/render.ts  +21 −9','edit test/export.test.ts  skipped 1 test','> npm run lint']},
+      {id:'gemini',name:'Gemini CLI',status:'crashed',costUsd:0.41,elapsedMs:93000,tokens:{input:44000,output:1200},filesTouched:1,
+        lastAction:"Error: ENOENT: no such file or directory, open 'src/export/dpi.ts'",
+        log:['read src/export/index.ts','open src/export/dpi.ts',"Error: ENOENT: no such file or directory, open 'src/export/dpi.ts'",'exit 1']}
+    ];
+    const fmt = ms => { const s = Math.floor(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+    const k = n => n >= 1000 ? `${(n/1000).toFixed(n >= 100000 ? 0 : 1)}k` : `${n}`;
+    const lanes = agents.map((a,i) => ({
+      ...a, color:C[a.id], pill:pills[a.status][0], pillFg:pills[a.status][1], pillBg:pills[a.status][2],
+      elapsed: fmt(a.elapsedMs), cost:`$${a.costUsd.toFixed(2)}`, fillW:`${Math.min(100, a.costUsd/budget*100)}%`,
+      tokens:`${k(a.tokens.input)} / ${k(a.tokens.output)}`, files:a.filesTouched,
+      open: !!this.state.open[a.id], toggle: () => this.setState(s => ({ open: { ...s.open, [a.id]: !s.open[a.id] } })),
+      log: a.log.map(l => ({ text:l, color: l.startsWith('Error') ? 'rgba(248,113,113,.8)' : l.startsWith('✓') ? 'rgba(74,222,128,.7)' : 'rgba(255,255,255,.45)' })),
+      rowBorder: i === agents.length-1 ? 'none' : '1px solid rgba(255,255,255,.06)'
+    }));
+    const running = agents.filter(a => a.status === 'running').length;
+    return { lanes, runningLabel: `${running} of ${agents.length} running` };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+<template id="__bundler_thumbnail" data-bg-color="#0A0A0F"><svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg"><circle cx="440" cy="400" r="260" fill="#F59E6B" opacity=".12"/><circle cx="400" cy="400" r="34" fill="#F59E6B"/><text x="480" y="456" font-family="Geist,system-ui,sans-serif" font-size="180" font-weight="700" fill="#F4F4F7" letter-spacing="-8">85</text></svg></template>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#0A0A0F;color:#F4F4F7;font-family:'Geist',system-ui,sans-serif;font-feature-settings:'tnum' 1;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+a{color:#F4F4F7;text-decoration:none}a:hover{color:#F4F4F7}
+@keyframes glowIn{from{opacity:0}to{opacity:1}}
+</style>
+</helmet>
+<div style="position:relative;min-height:100vh;min-width:1200px;overflow:clip;background-image:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:32px 32px">
+  {{ glow }}
+  <div style="position:relative;width:1200px;margin:0 auto;padding:36px 0 64px;display:flex;flex-direction:column;gap:28px">
+
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:15px;font-weight:500">Image export ignores custom DPI setting</span>
+      <span style="font-size:13px;color:rgba(255,255,255,.55)">shifan/gridloom #142</span>
+      <span style="font-size:13px;color:rgba(255,255,255,.55)">r_7f3a</span>
+      <span style="margin-left:auto;font-size:12px;font-weight:500;color:#4ADE80;background:rgba(74,222,128,.12);padding:3px 9px;border-radius:999px">Finished</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;align-items:stretch">
+      <div style="position:relative;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025);border-radius:12px;padding:28px 32px 30px;box-shadow:inset 0 0 0 1px {{ w.color }}22, inset 0 0 80px {{ w.color }}14;display:flex;flex-direction:column;gap:24px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:8px;height:8px;border-radius:50%;background:{{ w.color }};display:block"></span>
+            <span style="font-size:16px;font-weight:500">{{ w.name }}</span>
+            <span style="font-size:12px;font-weight:500;color:#4ADE80;background:rgba(74,222,128,.12);padding:3px 9px;border-radius:999px">Done</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:12px">
+          <span style="font-size:136px;line-height:.9;font-weight:700;letter-spacing:-.04em">{{ scoreAnim }}</span>
+          <span style="font-size:20px;color:rgba(255,255,255,.55)">/ 100</span>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:36px">
+          <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:500;color:rgba(255,255,255,.55)">Cost</span><span style="font-size:22px;font-weight:600;letter-spacing:-.02em">{{ w.cost }}</span></div>
+          <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:500;color:rgba(255,255,255,.55)">Duration</span><span style="font-size:22px;font-weight:600;letter-spacing:-.02em">{{ w.time }}</span></div>
+          <div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:500;color:rgba(255,255,255,.55)">Tests</span><span style="font-size:22px;font-weight:600;letter-spacing:-.02em">{{ w.tests }}</span></div>
+          <a href="#" style="margin-left:auto;font-size:13px;font-weight:500;color:#0A0A0F;background:#F4F4F7;padding:8px 14px;border-radius:6px">View PR {{ w.pr }}</a>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ others }}" as="a" hint-placeholder-count="3">
+          <div style="flex:1;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);border-radius:12px;padding:16px 20px;display:grid;grid-template-columns:24px 1fr auto;gap:14px;align-items:center">
+            <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,.55)">{{ a.rank }}</span>
+            <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="width:7px;height:7px;border-radius:50%;background:{{ a.color }};display:block"></span>
+                <span style="font-size:14px;font-weight:500">{{ a.name }}</span>
+                <span style="font-size:11px;font-weight:500;color:{{ a.pillFg }};background:{{ a.pillBg }};padding:2px 8px;border-radius:999px">{{ a.pill }}</span>
+              </div>
+              <div style="display:flex;gap:14px;font-size:12px;color:rgba(255,255,255,.55)">
+                <span>{{ a.cost }}</span><span>{{ a.time }}</span><span>{{ a.tests }}</span>
+              </div>
+            </div>
+            <span style="font-size:32px;font-weight:700;letter-spacing:-.04em;line-height:1">{{ a.score }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:0;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);border-radius:12px;padding:8px 24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0 12px;border-bottom:1px solid rgba(255,255,255,.06)">
+        <span style="font-size:13px;font-weight:500">Score breakdown</span>
+        <div style="display:flex;gap:16px;font-size:12px;color:rgba(255,255,255,.55)">
+          <sc-for list="{{ legend }}" as="l" hint-placeholder-count="6">
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:{{ l.color }};display:block;border:{{ l.border }};box-sizing:border-box"></span>{{ l.name }}</span>
+          </sc-for>
+        </div>
+      </div>
+      <sc-for list="{{ ranked }}" as="a" hint-placeholder-count="4">
+        <div style="display:grid;grid-template-columns:150px 1fr 48px;gap:20px;align-items:center;padding:18px 0;border-bottom:{{ a.rowBorder }}">
+          <div style="display:flex;align-items:center;gap:8px"><span style="width:7px;height:7px;border-radius:50%;background:{{ a.color }};display:block"></span><span style="font-size:13px;font-weight:500">{{ a.name }}</span></div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="display:grid;grid-template-columns:1fr 4fr;align-items:center;gap:0">
+              <div style="display:flex;justify-content:flex-end;border-right:1px solid rgba(255,255,255,.18);height:6px;align-items:center">
+                <sc-if value="{{ a.hasPenalty }}" hint-placeholder-val="{{ false }}">
+                  <span style="height:6px;border-radius:3px 0 0 3px;background:rgba(248,113,113,.65);width:{{ a.penaltyW }};display:block"></span>
+                </sc-if>
+              </div>
+              <div style="display:flex;gap:2px;height:6px">
+                <sc-if value="{{ a.hasBreakdown }}" hint-placeholder-val="{{ true }}">
+                  <sc-for list="{{ a.segs }}" as="s" hint-placeholder-count="6">
+                    <span style="height:6px;width:{{ s.w }};border-radius:{{ s.radius }};background:{{ s.bg }};border:{{ s.border }};box-sizing:border-box;display:block;flex:none"></span>
+                  </sc-for>
+                </sc-if>
+                <sc-if value="{{ a.noBreakdown }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:12px;color:rgba(255,255,255,.4);line-height:6px">No score, run crashed</span>
+                </sc-if>
+              </div>
+            </div>
+            <div style="display:flex;gap:16px;font-size:12px;color:rgba(255,255,255,.55);padding-left:20%">
+              <span>{{ a.tests }} tests</span><span><span style="color:#4ADE80">+{{ a.added }}</span> <span style="color:#F87171">-{{ a.removed }}</span></span><span>{{ a.files }} files</span><span>exit {{ a.exit }}</span>
+              <sc-if value="{{ a.hasFlag }}" hint-placeholder-val="{{ false }}"><span style="color:#F87171">{{ a.flag }}</span></sc-if>
+            </div>
+          </div>
+          <span style="font-size:20px;font-weight:600;letter-spacing:-.03em;text-align:right">{{ a.score }}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <a href="#" style="font-size:13px;font-weight:500;color:#F4F4F7;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03);padding:7px 14px;border-radius:6px">Share card</a>
+      <a href="#" style="font-size:13px;font-weight:500;color:#F4F4F7;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.03);padding:7px 14px;border-radius:6px">Copy results</a>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { n: 0 };
+  componentDidMount() {
+    const start = performance.now(), dur = 1400;
+    const tick = t => { const p = Math.min(1, (t - start) / dur), e = 1 - Math.pow(1 - p, 3); this.setState({ n: Math.round(85 * e) }); if (p < 1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+  renderVals() {
+    const C = { claude:'#F59E6B', codex:'#5EC8CE', opencode:'#E58BC7', gemini:'#9BCB6E' };
+    const agents = [
+      {id:'claude',name:'Claude Code',status:'done',score:85,breakdown:{tests:30,hidden:20,lint:15,ci:null,diff:10,judge:null,tamper:0},costUsd:1.84,durationMs:412000,filesTouched:3,lines:{added:41,removed:12},testsPassed:'48/48',pr:'#143',exit:'ok'},
+      {id:'codex',name:'Codex',status:'done',score:40,breakdown:{tests:30,hidden:0,lint:7.5,ci:null,diff:2.5,judge:null,tamper:0},costUsd:0.92,durationMs:298000,filesTouched:9,lines:{added:210,removed:34},testsPassed:'48/48',pr:'#144',exit:'ok'},
+      {id:'opencode',name:'OpenCode',status:'done',score:10,breakdown:{tests:30,hidden:0,lint:0,ci:null,diff:5,judge:null,tamper:-25},flags:['skipped test: export.test.ts'],costUsd:1.10,durationMs:355000,filesTouched:4,lines:{added:33,removed:18},testsPassed:'47/48',pr:'#145',exit:'ok'},
+      {id:'gemini',name:'Gemini CLI',status:'crashed',score:0,breakdown:null,costUsd:0.41,durationMs:93000,filesTouched:1,lines:{added:0,removed:0},testsPassed:null,pr:null,exit:'crashed'}
+    ];
+    const comps = [ {k:'tests',name:'Tests',max:30,c:'rgba(214,224,255,.62)'}, {k:'hidden',name:'Hidden tests',max:20,c:'rgba(176,196,240,.5)'}, {k:'lint',name:'Lint',max:15,c:'rgba(160,214,214,.4)'}, {k:'ci',name:'CI',max:10,c:'rgba(206,196,236,.32)'}, {k:'diff',name:'Diff discipline',max:10,c:'rgba(220,208,180,.26)'}, {k:'judge',name:'Judge',max:15,c:'rgba(255,255,255,.18)'} ];
+    const t = ms => { const s = Math.round(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+    const pills = { done:['Done','#4ADE80','rgba(74,222,128,.12)'], running:['Running','#60A5FA','rgba(96,165,250,.12)'], crashed:['Crashed','#F87171','rgba(248,113,113,.12)'] };
+    const ranked = agents.slice().sort((a,b)=>b.score-a.score).map((a,i)=>{
+      const b = a.breakdown;
+      const segs = b ? comps.map((c,j)=>{ const v = b[c.k]; const na = v === null; const w = na ? c.max : Math.max(v, 0); return { w:`${w}%`, bg: na ? 'transparent' : v > 0 ? c.c : 'rgba(255,255,255,.06)', border: na ? '1px dashed rgba(255,255,255,.18)' : 'none', radius: j===0 ? '3px 0 0 3px' : j===comps.length-1 ? '0 3px 3px 0' : '0' }; }) : [];
+      return { ...a, rank:i+1, color:C[a.id], cost:`$${a.costUsd.toFixed(2)}`, time:t(a.durationMs), tests:a.testsPassed || '—', added:a.lines.added, removed:a.lines.removed, files:a.filesTouched,
+        pill:pills[a.status][0], pillFg:pills[a.status][1], pillBg:pills[a.status][2],
+        hasBreakdown:!!b, noBreakdown:!b, segs, hasPenalty: !!(b && b.tamper < 0), penaltyW: b ? `${Math.abs(b.tamper) / 25 * 100}%` : '0%',
+        hasFlag: !!(a.flags && a.flags.length), flag: a.flags ? a.flags[0] : '', rowBorder: i===agents.length-1 ? 'none' : '1px solid rgba(255,255,255,.06)' };
+    });
+    const w = ranked[0];
+    const glow = React.createElement('div', { style:{ position:'absolute', left:'50%', top:'120px', width:'1100px', height:'620px', transform:'translateX(-50%)', pointerEvents:'none', background:`radial-gradient(ellipse at 35% 40%, ${w.color}1A 0%, ${w.color}0A 30%, transparent 65%)`, animation:'glowIn 1.6s ease-out both' } });
+    const legend = comps.map(c=>({ name:c.name, color:c.c, border:'none' })).concat([{ name:'Penalty', color:'rgba(248,113,113,.65)', border:'none' }, { name:'n/a', color:'transparent', border:'1px dashed rgba(255,255,255,.3)' }]);
+    return { glow, w, scoreAnim: this.state.n, others: ranked.slice(1), ranked, legend };
+  }
+}
+</script>
+</body>
+</html>

@@ -176,7 +176,7 @@ Types plus zod schemas. `fixtures/run.json` and `fixtures/events.jsonl` are hand
 
 ```ts
 export const SCHEMA_VERSION = 1 as const;
-export type DriverId = 'claude' | 'codex' | 'opencode';
+export type DriverId = 'claude' | 'codex' | 'opencode' | 'gemini'; // gemini: schema slot only, no driver in v1
 export type AgentStatus = 'running' | 'ok' | 'timeout' | 'crashed' | 'budget_exceeded';
 export type ComponentId = 'visible_tests' | 'hidden_tests' | 'typecheck' | 'lint' | 'ci' | 'diff' | 'judge';
 
@@ -305,7 +305,21 @@ Screens: Race (live lanes: driver, timer, spend bar cost/budget, tokens, files t
 
 Share card: satori + `@resvg/resvg-js`, 1200×630, podium, totals, cost, issue title, tamper flags if any. `bakeoff share <id>` writes `.bakeoff/runs/<id>.png`.
 
-Terminal: clack spinner per agent during the race (`--watch` not required), then a table (driver, total, tests, lint, ci, diff, cost, time, PR) and a podium line.
+### Visual design
+
+The four screens are specified pixel-accurately in `design/handoff/design_handoff_bakeoff/README.md` with editable sources (`*.dc.html`) and offline copies (`standalone/*.html`). Tokens, type (Geist / Geist Mono), spacing, radii, copy and motion come from that README and win over any styling in PLAN.md. Its `fixture.json` is illustrative; `src/contract/fixtures/run.json` is the data contract. Agreed deviations from the handoff:
+
+| Handoff | Bakeoff | Why |
+|---|---|---|
+| Score shown as `85 / 100` | `total / maxPossible` (e.g. `74.7 / 75`) | Unconfigured components must not read as lost points (decision above). Segment widths are `awarded / maxPossible` of the positive track. |
+| One `lint` segment (15) | `typecheck` + `lint` rendered as one segment labeled `Lint & types`, width = sum of both awarded, max = sum of both maxes | The contract scores them separately; the UI merges for display only. |
+| States: running / done / crashed | `timeout` and `budget_exceeded` use the crashed colors with their own label; `ok` renders as `Done` (or `PR open` when a PR exists) | Contract has five statuses. |
+| Gemini CLI lane in fixtures | `gemini` exists in `DriverId` and the color map so the UI renders it; no driver ships in v1 | Keeps the schema stable when the driver lands. |
+| Geist via Google Fonts | Same `<link>` in `ui/index.html`; static exports opened offline fall back to the system stack. The share card bundles Geist TTFs for satori. | Single-file export cannot embed a variable font cheaply. |
+| Run id `r_7f3a` | `YYYYMMDD-xxxx` | Store decision. |
+
+
+Terminal: specified in `design/TERMINAL.md`. Live view is an in-place redraw (a plain ANSI cursor loop, no Ink): header line `bakeoff  owner/name #N  title`, `N of M running` with elapsed clock, one block per agent (colored `●`, name, status word, cost, 20-cell `▰▱` spend bar in the agent color, `$budget`, tokens, files, `PR #n`, dimmed last action on the second line). Final table is plain text: rank, name, total, cost, `m:ss`, tests, `+a -r`, files, PR, tamper flag in soft red; rank 1 in the winner's color; then `Scoreboard <path>` and `Ladder <ratings>` lines. Colors are truecolor with a 256-color fallback; `NO_COLOR` strips color; a non-TTY stdout gets only the final table. No emoji, no box drawing.
 
 ## 11. Testing
 
