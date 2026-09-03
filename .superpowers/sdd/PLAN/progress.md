@@ -17,7 +17,7 @@ Single-file runs during TDD use `bunx vitest run <file>`.
 | 5 | Store (.bakeoff layout, run ids, events) | (pending) | done |
 | 6 | exec, repo detection, issue fetching | (pending) | done |
 | 7 | Task packet builder | (pending) | done |
-| 8 | Process control with group kill | | pending |
+| 8 | Process control with group kill | (pending) | done |
 | 9 | Pricing table | | pending |
 | 10 | Worktrees | | pending |
 | 11 | Driver interface, registry, doctor | | pending |

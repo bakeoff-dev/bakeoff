@@ -1221,7 +1221,7 @@ git add -A && git commit -m "feat(core): task packet builder"
 **Interfaces:**
 - Produces: `runProcess(input: RunProcessInput): Promise<RunProcessResult>` (SPEC.md section 9) and `BudgetMeter` (SPEC.md section 8, pricing lookup arrives in Task 9; here the meter takes an injectable `price: (model) => Price | null`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/process.test.ts
@@ -1279,12 +1279,12 @@ describe('runProcess', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/process.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write budget.ts**
+- [x] **Step 3: Write budget.ts**
 
 ```ts
 // src/core/budget.ts
@@ -1312,7 +1312,7 @@ export class BudgetMeter {
 }
 ```
 
-- [ ] **Step 4: Write process.ts**
+- [x] **Step 4: Write process.ts**
 
 ```ts
 // src/core/process.ts
@@ -1385,7 +1385,7 @@ export function runProcess(input: RunProcessInput): Promise<RunProcessResult> {
 }
 ```
 
-- [ ] **Step 5: Run tests, commit**
+- [x] **Step 5: Run tests, commit**
 
 Run: `bun test test/core/process.test.ts && bun run typecheck`
 Expected: 5 passed. If the group-kill test fails on macOS, confirm `detached: true` is set and that `-pgid` (negative) is passed to `process.kill`.
