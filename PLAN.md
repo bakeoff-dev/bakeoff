@@ -2010,12 +2010,12 @@ describe('publish', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/publish.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write publish.ts**
+- [x] **Step 3: Write publish.ts**
 
 ```ts
 // src/core/publish.ts
@@ -2051,7 +2051,7 @@ export async function createPr(o: { worktree: string; repo: Repo; branch: string
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.

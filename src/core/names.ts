@@ -9,6 +9,8 @@ export const NAMES = {
   label: 'bakeoff',
   runLabelPrefix: 'bakeoff-run:',
   tmpDirName: 'bakeoff',
+  botName: 'bakeoff',
+  botEmail: 'bakeoff@users.noreply.github.com',
   port: 4141,
 } as const;
 
