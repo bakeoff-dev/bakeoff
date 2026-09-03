@@ -670,7 +670,7 @@ git add -A && git commit -m "feat(contract): race reducer + events fixture"
 **Interfaces:**
 - Produces: `Config` type, `ConfigSchema`, `parseDuration(s: string): number` (ms), `loadConfig(repoRoot: string): Config`, `parseConfig(text: string): Config`, `configuredFlags(cfg: Config): Configured` (the `configured` block of the run record, with `ci` decided by `ci_timeout > 0`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/config.test.ts
@@ -709,12 +709,12 @@ describe('parseConfig', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bun test test/core/config.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write config.ts**
+- [x] **Step 3: Write config.ts**
 
 ```ts
 // src/core/config.ts
@@ -776,12 +776,12 @@ export function configuredFlags(c: Config): Configured {
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `bun test test/core/config.test.ts && bun run typecheck`
 Expected: pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(core): bakeoff.yml loader"
@@ -797,7 +797,7 @@ git add -A && git commit -m "feat(core): bakeoff.yml loader"
 **Interfaces:**
 - Produces: `newRunId(now?: Date, rand?: () => string): string`, `paths(repoRoot)` returning `{ stateDir, runsDir, hiddenDir, logsDir(id), runJson(id), events(id), html(id), png(id), ladder, log(id, driver) }`, `writeRun(repoRoot, rec)`, `readRun(repoRoot, id): RunRecord`, `listRunIds(repoRoot): string[]`, `appendEvent(repoRoot, id, ev)`, `readEvents(repoRoot, id): RaceEvent[]`, `readLadder(repoRoot): Ladder`, `writeLadder(repoRoot, ladder)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/store.test.ts
@@ -831,12 +831,12 @@ describe('store', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bun test test/core/store.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write store.ts**
+- [x] **Step 3: Write store.ts**
 
 ```ts
 // src/core/store.ts
@@ -903,7 +903,7 @@ export function writeLadder(repoRoot: string, ladder: Ladder): void {
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
@@ -926,7 +926,7 @@ git add -A && git commit -m "feat(core): .bakeoff store"
   - `parseIssueRef(ref: string, fallback?: { owner: string; name: string }): { owner; name; number }`; `fetchIssue(ref, run?): Promise<{ info: IssueInfo; body: string; comments: { author: string; body: string }[] }>`; `listOpenIssues(repo, run?): Promise<{ number: number; title: string }[]>`.
   - Test helper `fakeExec(table: Array<[RegExp, Partial<ExecResult>]>)` returning `{ run: Exec; calls: string[] }`.
 
-- [ ] **Step 1: Write the test helper and failing tests**
+- [x] **Step 1: Write the test helper and failing tests**
 
 ```ts
 // test/helpers/exec.ts
@@ -999,12 +999,12 @@ describe('listOpenIssues', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/repo.test.ts test/core/issue.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write exec.ts, repo.ts, issue.ts**
+- [x] **Step 3: Write exec.ts, repo.ts, issue.ts**
 
 ```ts
 // src/core/exec.ts
@@ -1094,7 +1094,7 @@ export async function listOpenIssues(repo: { owner: string; name: string }, run:
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
@@ -1114,7 +1114,7 @@ git add -A && git commit -m "feat(core): exec wrapper, repo detection, issue fet
 - Consumes: `IssueData` (Task 6), `Config` (Task 4).
 - Produces: `buildPacket(input: PacketInput): { text: string; hash: string }` where `PacketInput = { issue: IssueData; guidance: { agentsMd: string | null; claudeMd: string | null }; config: Pick<Config, 'test' | 'lint' | 'typecheck'> }`; `readGuidance(repoRoot): PacketInput['guidance']`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/packet.test.ts
@@ -1147,12 +1147,12 @@ describe('buildPacket', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/packet.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write packet.ts**
+- [x] **Step 3: Write packet.ts**
 
 ```ts
 // src/core/packet.ts
@@ -1202,7 +1202,7 @@ export function buildPacket(input: PacketInput): { text: string; hash: string } 
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
@@ -1221,7 +1221,7 @@ git add -A && git commit -m "feat(core): task packet builder"
 **Interfaces:**
 - Produces: `runProcess(input: RunProcessInput): Promise<RunProcessResult>` (SPEC.md section 9) and `BudgetMeter` (SPEC.md section 8, pricing lookup arrives in Task 9; here the meter takes an injectable `price: (model) => Price | null`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/process.test.ts
@@ -1279,12 +1279,12 @@ describe('runProcess', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/process.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write budget.ts**
+- [x] **Step 3: Write budget.ts**
 
 ```ts
 // src/core/budget.ts
@@ -1312,7 +1312,7 @@ export class BudgetMeter {
 }
 ```
 
-- [ ] **Step 4: Write process.ts**
+- [x] **Step 4: Write process.ts**
 
 ```ts
 // src/core/process.ts
@@ -1385,7 +1385,7 @@ export function runProcess(input: RunProcessInput): Promise<RunProcessResult> {
 }
 ```
 
-- [ ] **Step 5: Run tests, commit**
+- [x] **Step 5: Run tests, commit**
 
 Run: `bun test test/core/process.test.ts && bun run typecheck`
 Expected: 5 passed. If the group-kill test fails on macOS, confirm `detached: true` is set and that `-pgid` (negative) is passed to `process.kill`.
@@ -1404,7 +1404,7 @@ git add -A && git commit -m "feat(core): runProcess with process-group kill, tim
 **Interfaces:**
 - Produces: `priceFor(model: string): Price | null` (longest-prefix match after lowercasing; `null` for unknown), `defaultMeter(capUsd): BudgetMeter`.
 
-- [ ] **Step 1: Fetch current prices**
+- [x] **Step 1: Fetch current prices**
 
 Run these and read the results (values below are seeds from memory; replace with what the pages say today):
 
@@ -1413,7 +1413,7 @@ firecrawl scrape https://www.anthropic.com/pricing --format markdown | grep -iE 
 firecrawl scrape https://openai.com/api/pricing/ --format markdown | grep -iE 'gpt-5|codex|input|output|cached' | head -40
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 ```ts
 // test/core/pricing.test.ts
@@ -1438,7 +1438,7 @@ describe('priceFor', () => {
 });
 ```
 
-- [ ] **Step 3: Write pricing.json and pricing.ts**
+- [x] **Step 3: Write pricing.json and pricing.ts**
 
 ```json
 {
@@ -1480,7 +1480,7 @@ export function defaultMeter(capUsd: number): BudgetMeter {
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
@@ -1502,7 +1502,7 @@ git add -A && git commit -m "feat(core): model pricing table"
 Why sparse checkout and not just `rm -rf`: `.bakeoff/runs` and `ladder.json` are committed, so they sit in every worktree's index. Deleting them from disk would make the agent's `git add -A` stage their deletion and the PR would delete the run history. Sparse checkout marks them skip-worktree: absent on disk, ignored by `git add -A`, carried through unchanged into commits.
 - Test helper: `makeRepo(files: Record<string, string>, opts?: { gitignore?: string }): Promise<{ dir: string; sha: string; commit(files, msg): Promise<string> }>`.
 
-- [ ] **Step 1: Write the helper and failing test**
+- [x] **Step 1: Write the helper and failing test**
 
 ```ts
 // test/helpers/repo.ts
@@ -1562,12 +1562,12 @@ describe('worktree', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/worktree.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write worktree.ts**
+- [x] **Step 3: Write worktree.ts**
 
 ```ts
 // src/core/worktree.ts
@@ -1597,7 +1597,7 @@ export async function removeWorktree(o: { repoRoot: string; dir: string; branch?
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
@@ -1616,7 +1616,7 @@ git add -A && git commit -m "feat(core): worktree create/remove, strips .bakeoff
 **Interfaces:**
 - Produces: everything in SPEC.md section 8 (`Driver`, `DriverDoctor`, `LaunchInput`, `LaunchResult`, `AgentEvent`), `getDriver(id): Driver`, `allDrivers(): Driver[]`, `registerDriver(d)` (used by tests to add fakes), `helpHasFlags(helpText, flags): string[]` (missing flags), `doctorReport(ids, run?): Promise<DoctorLine[]>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/drivers/registry.test.ts
@@ -1641,12 +1641,12 @@ describe('helpHasFlags', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/drivers/registry.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write types.ts, registry.ts**
+- [x] **Step 3: Write types.ts, registry.ts**
 
 ```ts
 // src/core/drivers/types.ts
@@ -1699,7 +1699,7 @@ export function getDriver(id: DriverId): Driver {
 export function allDrivers(): Driver[] { return [...drivers.values()]; }
 ```
 
-- [ ] **Step 4: Write the doctor command and CLI entry**
+- [x] **Step 4: Write the doctor command and CLI entry**
 
 ```ts
 // src/cli/commands/doctor.ts
@@ -1760,7 +1760,7 @@ program.parseAsync(process.argv);
 
 Create `src/core/drivers/index.ts` as the side-effect module that registers real drivers; for now it is empty (`export {};`). Task 12 adds `registerDriver(claudeDriver)` to it.
 
-- [ ] **Step 5: Run tests, run doctor, commit**
+- [x] **Step 5: Run tests, run doctor, commit**
 
 Run: `bun test && bun run typecheck && bun run dev -- doctor --agents claude`
 Expected: tests pass; doctor exits 1 with "Unknown driver" until Task 12 (that is fine).
