@@ -6,3 +6,4 @@ dist/
 .superpowers/sdd/*/workspace/
 *.log
 .DS_Store
+.t3-worktrees/
