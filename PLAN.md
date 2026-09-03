@@ -1616,7 +1616,7 @@ git add -A && git commit -m "feat(core): worktree create/remove, strips .bakeoff
 **Interfaces:**
 - Produces: everything in SPEC.md section 8 (`Driver`, `DriverDoctor`, `LaunchInput`, `LaunchResult`, `AgentEvent`), `getDriver(id): Driver`, `allDrivers(): Driver[]`, `registerDriver(d)` (used by tests to add fakes), `helpHasFlags(helpText, flags): string[]` (missing flags), `doctorReport(ids, run?): Promise<DoctorLine[]>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/drivers/registry.test.ts
@@ -1641,12 +1641,12 @@ describe('helpHasFlags', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/drivers/registry.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write types.ts, registry.ts**
+- [x] **Step 3: Write types.ts, registry.ts**
 
 ```ts
 // src/core/drivers/types.ts
@@ -1699,7 +1699,7 @@ export function getDriver(id: DriverId): Driver {
 export function allDrivers(): Driver[] { return [...drivers.values()]; }
 ```
 
-- [ ] **Step 4: Write the doctor command and CLI entry**
+- [x] **Step 4: Write the doctor command and CLI entry**
 
 ```ts
 // src/cli/commands/doctor.ts
@@ -1760,7 +1760,7 @@ program.parseAsync(process.argv);
 
 Create `src/core/drivers/index.ts` as the side-effect module that registers real drivers; for now it is empty (`export {};`). Task 12 adds `registerDriver(claudeDriver)` to it.
 
-- [ ] **Step 5: Run tests, run doctor, commit**
+- [x] **Step 5: Run tests, run doctor, commit**
 
 Run: `bun test && bun run typecheck && bun run dev -- doctor --agents claude`
 Expected: tests pass; doctor exits 1 with "Unknown driver" until Task 12 (that is fine).

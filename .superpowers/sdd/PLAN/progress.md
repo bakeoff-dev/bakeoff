@@ -20,7 +20,7 @@ Single-file runs during TDD use `bunx vitest run <file>`.
 | 8 | Process control with group kill | (pending) | done |
 | 9 | Pricing table | (pending) | done |
 | 10 | Worktrees | (pending) | done |
-| 11 | Driver interface, registry, doctor | | pending |
+| 11 | Driver interface, registry, doctor | (pending) | done |
 
 Scope of this session: Tasks 4-11, then push and open a PR. Stop after Task 11.
 
@@ -48,3 +48,10 @@ Scope of this session: Tasks 4-11, then push and open a PR. Stop after Task 11.
   the worktree. The plan's bogus `GIT_DIR` override was dropped with it.
 - **Task 10 / `test/core/worktree.test.ts`**: added the missing `writeFileSync` import; the
   plan's snippet uses it without importing it.
+- **Task 11 / `src/cli/commands/doctor.ts`**: `TESTED_VERSIONS[id]` does not typecheck --
+  `DriverId` includes `gemini`, which has no entry (schema slot only, no driver in v1).
+  Read through a `Partial<Record<DriverId, string>>` binding and only append the
+  "tested with" note when a tested version is known.
+- **Task 11 / `src/cli/commands/doctor.ts`**: wrapped `doctorReport` in try/catch so an
+  unregistered driver prints one error line and exits 1, instead of surfacing as an
+  unhandled promise rejection. Same exit code the plan expects before Task 12.
