@@ -2304,7 +2304,7 @@ git add -A && git commit -m "feat(core): race orchestrator with events, publish,
 **Interfaces:**
 - Produces: `style.ts`: `DRIVER_NAME`, `DRIVER_HEX`, `STATUS_HEX`, `colorEnabled(): boolean`, `paint(hex, s)`, `dim(s)`, `fmtClock(ms)` (`6:52`), `fmtClockPadded(ms)` (`02:14`), `fmtTok(tokens)` (`181k tok`), `fmtCost(n)` (`$1.20` / `n/a`), `spendBar(cost, budget, width = 20)`. `progress.ts`: `progressRenderer(out?): { onEvent(e: RaceEvent): void; stop(): void }`. `runCommand(issueArg: string | undefined, opts: { agents?: string; budget?: string; timeout?: string; watch?: boolean; keepWorktrees?: boolean })`, `initCommand()`.
 
-- [ ] **Step 1: Write style.ts with a failing test, then progress.ts**
+- [x] **Step 1: Write style.ts with a failing test, then progress.ts**
 
 ```ts
 // test/cli/style.test.ts
@@ -2423,7 +2423,7 @@ export function progressRenderer(out: NodeJS.WriteStream = process.stdout) {
 
 `colorEnabled` is imported so `paint` inside `frame()` respects `NO_COLOR` on a TTY (the bar and dots print plain). Run: `bun test test/cli/style.test.ts && bun run typecheck` → pass.
 
-- [ ] **Step 2: Write run.ts and init.ts**
+- [x] **Step 2: Write run.ts and init.ts**
 
 ```ts
 // src/cli/commands/run.ts
@@ -2513,12 +2513,12 @@ program.command('run [issue]').description('Race agents on an issue (owner/repo#
 program.command('init').description(`Write ${NAMES.configFile} and gitignore entries`).action(() => initCommand());
 ```
 
-- [ ] **Step 3: Typecheck and unit tests**
+- [x] **Step 3: Typecheck and unit tests**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
 
-- [ ] **Step 4a: Check that headless Claude does not block on a workspace-trust prompt in a fresh $TMPDIR worktree**
+- [x] **Step 4a: Check that headless Claude does not block on a workspace-trust prompt in a fresh $TMPDIR worktree**
 
 Interactive Claude Code asks "Do you trust the files in this folder?" the first time it sees a directory. Bakeoff's worktrees are always fresh directories under `$TMPDIR`, so prove `-p` mode never waits on that prompt:
 
@@ -2529,7 +2529,7 @@ timeout 90 claude -p "print the word ok and stop" --max-budget-usd 0.05 --output
 
 Expected: a JSON envelope within a few seconds and exit 0. If instead it hangs until `timeout` kills it (exit 124), or the stderr mentions trust, apply this fix in `claudeDriver.launch` and re-run the check: pre-seed trust for the worktree path before spawning by merging `{ "projects": { "<worktree>": { "hasTrustDialogAccepted": true } } }` into `~/.claude.json` (read, merge, write; create the file if missing), and pass `--add-dir <worktree>` (already in `claudeArgs`). Record which of the two was needed in `CLAUDE.md` under Driver notes.
 
-- [ ] **Step 4: Manual end-to-end on the scratch repo (this is the day-2 milestone)**
+- [x] **Step 4: Manual end-to-end on the scratch repo (this is the day-2 milestone)**
 
 ```bash
 gh repo create bakeoff-dev/scratch --public --clone --description "Bakeoff test bed" && cd scratch
@@ -2552,7 +2552,7 @@ bun run /path/to/bakeoff/src/cli/index.ts run 1 --agents claude --budget 1 --tim
 
 Expected: the live block redraws in place with a colored `●`, the spend bar creeping up, and the last action dimmed underneath; after exit the block clears and a plain line prints `claude  ok  $0.xx  NNs  https://github.com/bakeoff-dev/scratch/pull/1`. `gh pr view 1` shows labels `bakeoff` and `bakeoff-run:<id>`. `.bakeoff/runs/<id>.json` has `status: "ok"`, a `costUsd`, tokens, and `prUrl`. Take the screenshot.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(cli): run and init commands; first real PR"

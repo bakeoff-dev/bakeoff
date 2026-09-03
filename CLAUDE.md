@@ -56,6 +56,8 @@ test/           vitest
 - Claude Code 2.1.259 is installed and verified. `--max-turns` does not exist in this version; `maxTurns` is ignored for Claude.
 - Codex (`@openai/codex`) and OpenCode (`opencode-ai`) are not installed on the dev machine yet. Install and record a fixture before writing the parser.
 - Feature-detect flags by parsing `<cli> --help` in `doctor()`. Flags churn.
+- Headless Claude (`-p`) does not raise the workspace-trust prompt in a fresh `$TMPDIR` git repo, verified on 2.1.259. No `~/.claude.json` pre-seeding is needed.
+- The `doctor` auth probe pins `--model claude-haiku-4-5`. Opus bills roughly $0.21 for the system-prompt cache write alone, so a small `--max-budget-usd` trips the cap on turn one and reports `error_max_budget_usd`, which looks like an auth failure but is not. `probeAuthOk` treats a budget stop as proof the API accepted us.
 
 ## Design
 
