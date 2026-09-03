@@ -1783,7 +1783,7 @@ git add -A && git commit -m "feat: driver interface, registry, doctor command"
 - Consumes: `runProcess`, `BudgetMeter`, driver types.
 - Produces: `claudeDriver: Driver`, `claudeArgs(input, opts: { bare: boolean }): string[]`, `parseClaudeLine(line: string): { events: AgentEvent[]; result: ClaudeResult | null }` with `ClaudeResult = { costUsd: number | null; tokens: TokenUsage | null; isError: boolean; durationMs: number | null }`.
 
-- [ ] **Step 1: Record a real fixture**
+- [x] **Step 1: Record a real fixture**
 
 ```bash
 mkdir -p test/fixtures/drivers/claude && cd "$(mktemp -d)" && git init -q && \
@@ -1795,7 +1795,7 @@ head -c 600 test/fixtures/drivers/claude/stream.jsonl; echo; tail -c 800 test/fi
 
 Confirm the first line is `{"type":"system","subtype":"init",...}`, at least one line is `{"type":"assistant",...}` containing a `tool_use` block with `"name":"Write"`, and the last line is `{"type":"result",...}` with `total_cost_usd`, `usage`, `duration_ms`. If field names differ from the parser below, change the parser to match the fixture, not the other way around.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 ```ts
 // test/core/drivers/claude.test.ts
@@ -1832,12 +1832,12 @@ describe('claudeArgs', () => {
 });
 ```
 
-- [ ] **Step 3: Run to verify failure**
+- [x] **Step 3: Run to verify failure**
 
 Run: `bun test test/core/drivers/claude.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 4: Write claude.ts**
+- [x] **Step 4: Write claude.ts**
 
 ```ts
 // src/core/drivers/claude.ts
@@ -1951,7 +1951,7 @@ import { claudeDriver } from './claude';
 registerDriver(claudeDriver);
 ```
 
-- [ ] **Step 5: Run tests and doctor, commit**
+- [x] **Step 5: Run tests and doctor, commit**
 
 Run: `bun test && bun run typecheck && bun run dev -- doctor --agents claude`
 Expected: tests pass; doctor shows git, gh auth, Claude Code v2.1.259 all green. The doctor probe spends about one cent per run.
@@ -1970,7 +1970,7 @@ git add -A && git commit -m "feat(drivers): Claude Code driver with stream-json 
 **Interfaces:**
 - Produces: `commitLeftovers(worktree, message, run?): Promise<boolean>`, `pushBranch(worktree, branch, run?): Promise<void>`, `ensureLabels(repo, labels: { name: string; color: string }[], run?)`, `createPr(o: { worktree; repo; branch; base; title; body; labels: string[] }, run?): Promise<{ url: string; number: number }>`, `prNumberFromUrl(url): number`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/publish.test.ts
