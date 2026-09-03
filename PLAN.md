@@ -926,7 +926,7 @@ git add -A && git commit -m "feat(core): .bakeoff store"
   - `parseIssueRef(ref: string, fallback?: { owner: string; name: string }): { owner; name; number }`; `fetchIssue(ref, run?): Promise<{ info: IssueInfo; body: string; comments: { author: string; body: string }[] }>`; `listOpenIssues(repo, run?): Promise<{ number: number; title: string }[]>`.
   - Test helper `fakeExec(table: Array<[RegExp, Partial<ExecResult>]>)` returning `{ run: Exec; calls: string[] }`.
 
-- [ ] **Step 1: Write the test helper and failing tests**
+- [x] **Step 1: Write the test helper and failing tests**
 
 ```ts
 // test/helpers/exec.ts
@@ -999,12 +999,12 @@ describe('listOpenIssues', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/repo.test.ts test/core/issue.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write exec.ts, repo.ts, issue.ts**
+- [x] **Step 3: Write exec.ts, repo.ts, issue.ts**
 
 ```ts
 // src/core/exec.ts
@@ -1094,7 +1094,7 @@ export async function listOpenIssues(repo: { owner: string; name: string }, run:
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
