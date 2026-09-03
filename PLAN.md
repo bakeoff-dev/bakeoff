@@ -1404,7 +1404,7 @@ git add -A && git commit -m "feat(core): runProcess with process-group kill, tim
 **Interfaces:**
 - Produces: `priceFor(model: string): Price | null` (longest-prefix match after lowercasing; `null` for unknown), `defaultMeter(capUsd): BudgetMeter`.
 
-- [ ] **Step 1: Fetch current prices**
+- [x] **Step 1: Fetch current prices**
 
 Run these and read the results (values below are seeds from memory; replace with what the pages say today):
 
@@ -1413,7 +1413,7 @@ firecrawl scrape https://www.anthropic.com/pricing --format markdown | grep -iE 
 firecrawl scrape https://openai.com/api/pricing/ --format markdown | grep -iE 'gpt-5|codex|input|output|cached' | head -40
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 ```ts
 // test/core/pricing.test.ts
@@ -1438,7 +1438,7 @@ describe('priceFor', () => {
 });
 ```
 
-- [ ] **Step 3: Write pricing.json and pricing.ts**
+- [x] **Step 3: Write pricing.json and pricing.ts**
 
 ```json
 {
@@ -1480,7 +1480,7 @@ export function defaultMeter(capUsd: number): BudgetMeter {
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
