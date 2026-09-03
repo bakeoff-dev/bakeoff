@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { loadBootstrap, useRaceState } from './data';
+import { Race } from './screens/Race';
 import { Scoreboard } from './screens/Scoreboard';
 import { T, ghostButton, page } from './theme';
 
@@ -31,7 +32,7 @@ export function App() {
         ))}
       </nav>
       {tab === 'scoreboard' && <Scoreboard state={state} />}
-      {tab === 'race' && <div style={{ padding: 36, color: T.muted }}>Race view arrives in Task 29.</div>}
+      {tab === 'race' && <Race state={state} bootstrap={bootstrap} />}
       {tab === 'ladder' && <div style={{ padding: 36, color: T.muted }}>Ladder arrives in Task 31.</div>}
     </div>
   );
