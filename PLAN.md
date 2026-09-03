@@ -3630,7 +3630,7 @@ Post the "tests don't lie" result.
 
 All visual values below are copied from `design/handoff/design_handoff_bakeoff/Bakeoff Scoreboard.dc.html` (inline styles) and the README. There is no separate stylesheet: the handoff is written as inline styles and so is the app. Deviations are the ones agreed in SPEC.md section 10.
 
-- [ ] **Step 1: vite.config.ts, index.html, main.tsx, dev-data.ts**
+- [x] **Step 1: vite.config.ts, index.html, main.tsx, dev-data.ts**
 
 ```ts
 // ui/vite.config.ts
@@ -3685,7 +3685,7 @@ import events from '../src/contract/fixtures/events.jsonl?raw';
 (window as unknown as { __DEV_EVENTS__?: string }).__DEV_EVENTS__ = events;
 ```
 
-- [ ] **Step 2: theme.ts with a failing test**
+- [x] **Step 2: theme.ts with a failing test**
 
 ```ts
 // test/ui/theme.test.ts
@@ -3779,7 +3779,7 @@ export const ghostButton: CSSProperties = { fontSize: 13, fontWeight: 500, color
 
 Run: `bun test test/ui/theme.test.ts` → FAIL, write `theme.ts`, run again → PASS.
 
-- [ ] **Step 3: data.ts with a failing test, then App.tsx**
+- [x] **Step 3: data.ts with a failing test, then App.tsx**
 
 ```ts
 // test/ui/data.test.ts
@@ -3856,7 +3856,7 @@ export function App() {
 }
 ```
 
-- [ ] **Step 4: Scoreboard screen and components (markup mirrors the handoff one-to-one)**
+- [x] **Step 4: Scoreboard screen and components (markup mirrors the handoff one-to-one)**
 
 ```tsx
 // ui/src/components/Dot.tsx
@@ -4047,7 +4047,7 @@ export function toMarkdown(rec: RunRecord): string {
 }
 ```
 
-- [ ] **Step 5: Run tests, build, compare against the handoff**
+- [x] **Step 5: Run tests, build, compare against the handoff**
 
 ```bash
 bun test && bun run typecheck && bun run build:ui && grep -c 'BAKEOFF_DATA' dist/ui.html
@@ -4057,7 +4057,7 @@ open "design/handoff/design_handoff_bakeoff/standalone/Bakeoff Scoreboard.html"
 
 Expected: `grep` prints 1. Side by side with the handoff: same header, winner surface with glow and count-up, others column, breakdown rows with a dashed n/a CI segment and a red penalty segment on Codex, footer buttons. Differences allowed: `/ 75` instead of `/ 100`, `Lint & types` legend entry, `PR open` pill on the winner. Screenshot it.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat(ui): vite single-file app with scoreboard screen from the design handoff"
