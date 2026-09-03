@@ -1502,7 +1502,7 @@ git add -A && git commit -m "feat(core): model pricing table"
 Why sparse checkout and not just `rm -rf`: `.bakeoff/runs` and `ladder.json` are committed, so they sit in every worktree's index. Deleting them from disk would make the agent's `git add -A` stage their deletion and the PR would delete the run history. Sparse checkout marks them skip-worktree: absent on disk, ignored by `git add -A`, carried through unchanged into commits.
 - Test helper: `makeRepo(files: Record<string, string>, opts?: { gitignore?: string }): Promise<{ dir: string; sha: string; commit(files, msg): Promise<string> }>`.
 
-- [ ] **Step 1: Write the helper and failing test**
+- [x] **Step 1: Write the helper and failing test**
 
 ```ts
 // test/helpers/repo.ts
@@ -1562,12 +1562,12 @@ describe('worktree', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/worktree.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write worktree.ts**
+- [x] **Step 3: Write worktree.ts**
 
 ```ts
 // src/core/worktree.ts
@@ -1597,7 +1597,7 @@ export async function removeWorktree(o: { repoRoot: string; dir: string; branch?
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
