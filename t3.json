@@ -1,0 +1,19 @@
+{
+  "$schema": "https://t3.codes/schema/t3.json",
+  "scripts": [
+    {
+      "name": "Setup Worktree",
+      "command": "bun install",
+      "icon": "configure",
+      "runOnWorktreeCreate": true
+    },
+    {
+      "name": "Test",
+      "command": "bun run test && bun run typecheck"
+    },
+    {
+      "name": "Build UI",
+      "command": "bun run build:ui"
+    }
+  ]
+}

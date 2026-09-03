@@ -2,8 +2,7 @@ node_modules/
 dist/
 .bakeoff/hidden/
 .bakeoff/logs/
+.worktrees/
+.superpowers/sdd/*/workspace/
 *.log
 .DS_Store
-.worktrees/
-.claude/worktrees/
-.superpowers/
