@@ -6,7 +6,7 @@
 
 **Architecture:** One Bun/TypeScript package. `src/contract/` defines the run record, race events, and a reducer that both the CLI and the React UI consume. `src/core/` does the work (config, git worktrees, drivers, process control, scoring, ladder). `src/cli/` is commander plus a Bun.serve SSE server. `ui/` is a Vite single-file React app embedded by the CLI. Every agent subprocess goes through one `runProcess` that owns timeout, budget trip, and process-group kill.
 
-**Tech Stack:** Bun 1.3, TypeScript 5, commander 15, @clack/prompts 1.7, zod, yaml, openskill 5, satori 0.33, @resvg/resvg-js 2.6, Vite 6, React 19, Tailwind 4, vite-plugin-singlefile 2.3, vitest.
+**Tech Stack:** Bun 1.3, TypeScript 5, commander 15, @clack/prompts 1.7, zod, yaml, openskill 5, satori 0.33, @resvg/resvg-js 2.6, Vite 6, React 19, vite-plugin-singlefile 2.3, vitest. UI styling is plain CSS-in-JS style objects copied from the design handoff; no Tailwind.
 
 **Spec:** `SPEC.md` (this repo root). The product spec `pr-arena-v1-spec.md` is background only.
 
@@ -83,6 +83,7 @@ If the org does not exist yet, create it in the GitHub UI first (Settings > Orga
 | `src/cli/export.ts` | inject data into `dist/ui.html`, write `<id>.html` |
 | `src/render/card.tsx` | satori PNG card |
 | `ui/index.html`, `ui/vite.config.ts`, `ui/src/main.tsx`, `ui/src/App.tsx` | app shell, data source (static vs SSE) |
+| `ui/src/theme.ts` | tokens, agent meta, pill colors, segment palette, formatters, shared style objects (all values from the handoff) |
 | `ui/src/screens/{Race,Scoreboard,Ladder}.tsx` | the three screens |
 | `ui/src/components/*.tsx` | Lane, Podium, ComponentBars, Receipts, TamperFlags, Sparkline |
 | `test/helpers/repo.ts` | build fixture git repos in temp dirs |
@@ -132,14 +133,12 @@ If the org does not exist yet, create it in the GitHub UI first (Settings > Orga
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.0",
     "@types/bun": "latest",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "tailwindcss": "^4.1.0",
     "typescript": "^5.8.0",
     "vite": "^6.3.0",
     "vite-plugin-singlefile": "^2.3.3",
@@ -1498,7 +1497,9 @@ git add -A && git commit -m "feat(core): model pricing table"
 - Create: `src/core/worktree.ts`, `test/helpers/repo.ts`, `test/core/worktree.test.ts`
 
 **Interfaces:**
-- Produces: `worktreeDir(runId, driver): string` (under `os.tmpdir()/bakeoff/<runId>/<driver>`), `createWorktree({ repoRoot, baseSha, branch, dir }, run?): Promise<void>` (creates, then deletes `<dir>/.bakeoff`), `removeWorktree({ repoRoot, dir, branch, deleteBranch }, run?): Promise<void>`.
+- Produces: `worktreeDir(runId, driver): string` (under `os.tmpdir()/bakeoff/<runId>/<driver>`), `createWorktree({ repoRoot, baseSha, branch, dir }, run?): Promise<void>` (adds the worktree with `--no-checkout`, applies a non-cone sparse checkout that excludes `/.bakeoff/`, checks out, then `rm -rf`s `<dir>/.bakeoff` as a belt-and-braces), `removeWorktree({ repoRoot, dir, branch, deleteBranch }, run?): Promise<void>`.
+
+Why sparse checkout and not just `rm -rf`: `.bakeoff/runs` and `ladder.json` are committed, so they sit in every worktree's index. Deleting them from disk would make the agent's `git add -A` stage their deletion and the PR would delete the run history. Sparse checkout marks them skip-worktree: absent on disk, ignored by `git add -A`, carried through unchanged into commits.
 - Test helper: `makeRepo(files: Record<string, string>, opts?: { gitignore?: string }): Promise<{ dir: string; sha: string; commit(files, msg): Promise<string> }>`.
 
 - [ ] **Step 1: Write the helper and failing test**
@@ -1544,6 +1545,16 @@ describe('worktree', () => {
     expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('a');
     expect(existsSync(join(dir, '.bakeoff'))).toBe(false);
     expect(await must('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir })).toBe('bakeoff/1-claude-20260902-test');
+    // nothing under .bakeoff/ is checked out: every index entry there is skip-worktree ("S"), none is "H"
+    const tagged = (await must('git', ['ls-files', '-t', '--', '.bakeoff'], { cwd: dir })).split('\n').filter(Boolean);
+    expect(tagged.length).toBeGreaterThan(0);
+    expect(tagged.every((l) => l.startsWith('S '))).toBe(true);
+    expect(await must('git', ['ls-files', '--', '.bakeoff'], { cwd: dir, env: { GIT_DIR: join(dir, '.git') } }).catch(() => '')).not.toContain('hidden');
+    // an agent-style commit must not touch .bakeoff/
+    writeFileSync(join(dir, 'a.txt'), 'changed');
+    await must('git', ['add', '-A'], { cwd: dir });
+    await must('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'agent change'], { cwd: dir });
+    expect(await must('git', ['diff', '--name-only', repo.sha, 'HEAD'], { cwd: dir })).toBe('a.txt');
     await removeWorktree({ repoRoot: repo.dir, dir, branch: 'bakeoff/1-claude-20260902-test', deleteBranch: true });
     expect(existsSync(dir)).toBe(false);
     expect((await must('git', ['branch', '--list', 'bakeoff/*'], { cwd: repo.dir }))).toBe('');
@@ -1572,7 +1583,9 @@ export function worktreeDir(runId: string, driver: string): string {
 
 export async function createWorktree(o: { repoRoot: string; baseSha: string; branch: string; dir: string }, run: Exec = exec): Promise<void> {
   mkdirSync(dirname(o.dir), { recursive: true });
-  await must('git', ['worktree', 'add', '-q', '-b', o.branch, o.dir, o.baseSha], { cwd: o.repoRoot }, run);
+  await must('git', ['worktree', 'add', '-q', '--no-checkout', '-b', o.branch, o.dir, o.baseSha], { cwd: o.repoRoot }, run);
+  await must('git', ['sparse-checkout', 'set', '--no-cone', '/*', `!/${NAMES.stateDir}/`], { cwd: o.dir }, run);
+  await must('git', ['checkout', '-q', o.branch], { cwd: o.dir }, run);
   rmSync(join(o.dir, NAMES.stateDir), { recursive: true, force: true });
 }
 
@@ -1828,6 +1841,7 @@ Expected: FAIL.
 
 ```ts
 // src/core/drivers/claude.ts
+import { tmpdir } from 'node:os';
 import type { Caps, TokenUsage } from '@contract';
 import { exec } from '../exec';
 import { runProcess } from '../process';
@@ -1890,13 +1904,20 @@ export function parseClaudeLine(line: string): { events: AgentEvent[]; result: C
 export const claudeDriver: Driver = {
   id: 'claude', displayName: 'Claude Code', color: '#F59E6B',
   async doctor() {
+    const probeLines: string[] = [];
     const v = await exec('claude', ['--version']);
     if (v.code !== 0) return { found: false, version: null, authOk: false, notes: ['install: npm i -g @anthropic-ai/claude-code'] };
     const version = v.stdout.trim().split(/\s+/)[0] ?? null;
     const help = await exec('claude', ['--help']);
     const missing = helpHasFlags(help.stdout + help.stderr, REQUIRED_FLAGS);
     const notes = missing.length ? [`missing flags: ${missing.join(' ')}`] : [];
-    const authOk = !!process.env.ANTHROPIC_API_KEY || !!process.env.CLAUDE_CODE_OAUTH_TOKEN || true; // claude reads keychain; trust it, surface errors at run time
+    // Real probe: a one-line prompt with a tiny budget. Exit 0 and no is_error means auth works.
+    // 2.1.259 rejects --max-turns as an unknown option, so it is deliberately not passed here.
+    const probe = await runProcess({ cmd: 'claude', args: ['-p', 'say ok', '--max-budget-usd', '0.05', '--output-format', 'json'], cwd: tmpdir(), timeoutMs: 60_000, stdin: '' , onStdoutLine: (l) => probeLines.push(l) });
+    let isError = false;
+    try { isError = (JSON.parse(probeLines.join('')) as { is_error?: boolean }).is_error === true; } catch { isError = true; }
+    const authOk = probe.status === 'ok' && !isError;
+    if (!authOk) notes.push(probe.status === 'timeout' ? 'auth probe timed out (workspace trust prompt? see Task 15)' : 'auth probe failed: run `claude` once interactively to log in');
     return { found: true, version, authOk: authOk && missing.length === 0, notes };
   },
   async launch(input: LaunchInput): Promise<LaunchResult> {
@@ -1933,7 +1954,7 @@ registerDriver(claudeDriver);
 - [ ] **Step 5: Run tests and doctor, commit**
 
 Run: `bun test && bun run typecheck && bun run dev -- doctor --agents claude`
-Expected: tests pass; doctor shows git, gh auth, Claude Code v2.1.259 all green.
+Expected: tests pass; doctor shows git, gh auth, Claude Code v2.1.259 all green. The doctor probe spends about one cent per run.
 
 ```bash
 git add -A && git commit -m "feat(drivers): Claude Code driver with stream-json parser + fixture"
@@ -2496,6 +2517,17 @@ program.command('init').description(`Write ${NAMES.configFile} and gitignore ent
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
+
+- [ ] **Step 4a: Check that headless Claude does not block on a workspace-trust prompt in a fresh $TMPDIR worktree**
+
+Interactive Claude Code asks "Do you trust the files in this folder?" the first time it sees a directory. Bakeoff's worktrees are always fresh directories under `$TMPDIR`, so prove `-p` mode never waits on that prompt:
+
+```bash
+d="$TMPDIR/bakeoff-trust-check" && rm -rf "$d" && mkdir -p "$d" && cd "$d" && git init -q && echo x > x.txt && git add -A && git -c user.name=t -c user.email=t@t commit -q -m init
+timeout 90 claude -p "print the word ok and stop" --max-budget-usd 0.05 --output-format json --permission-mode acceptEdits < /dev/null | head -c 300; echo; echo "exit=${pipestatus[1]:-$?}"
+```
+
+Expected: a JSON envelope within a few seconds and exit 0. If instead it hangs until `timeout` kills it (exit 124), or the stderr mentions trust, apply this fix in `claudeDriver.launch` and re-run the check: pre-seed trust for the worktree path before spawning by merging `{ "projects": { "<worktree>": { "hasTrustDialogAccepted": true } } }` into `~/.claude.json` (read, merge, write; create the file if missing), and pass `--add-dir <worktree>` (already in `claudeArgs`). Record which of the two was needed in `CLAUDE.md` under Driver notes.
 
 - [ ] **Step 4: Manual end-to-end on the scratch repo (this is the day-2 milestone)**
 
@@ -3590,90 +3622,189 @@ Post the "tests don't lie" result.
 ### Task 25: UI scaffold with the Scoreboard screen
 
 **Files:**
-- Create: `ui/index.html`, `ui/vite.config.ts`, `ui/src/main.tsx`, `ui/src/App.tsx`, `ui/src/data.ts`, `ui/src/styles.css`, `ui/src/screens/Scoreboard.tsx`, `ui/src/components/{Podium,ComponentBars,Receipts,TamperFlags,Banner}.tsx`, `ui/src/theme.ts`, `ui/dev-data.ts`, `test/ui/data.test.ts`
+- Create: `ui/index.html`, `ui/vite.config.ts`, `ui/src/main.tsx`, `ui/src/App.tsx`, `ui/src/data.ts`, `ui/src/theme.ts`, `ui/src/screens/Scoreboard.tsx`, `ui/src/components/{WinnerSurface,OthersColumn,Breakdown,Pill,Dot}.tsx`, `ui/dev-data.ts`, `test/ui/data.test.ts`, `test/ui/theme.test.ts`
 
 **Interfaces:**
 - Consumes: `@contract` (schemas, reducer, fixtures).
-- Produces: `window.__BAKEOFF__: { mode: 'static'; events: RaceEvent[] } | { mode: 'live'; eventsUrl: string }` read by `ui/src/data.ts` `loadBootstrap(): Bootstrap` (from `#bakeoff-data` script tag, else `window.__BAKEOFF__`, else dev fixture), `useRaceState(bootstrap): RaceState` hook. Build output `dist/ui.html` containing the literal marker `<!--BAKEOFF_DATA-->` just before `</head>` (export injects there).
+- Produces: `window.__BAKEOFF__: { mode: 'static'; events: RaceEvent[] } | { mode: 'live'; eventsUrl: string }` read by `ui/src/data.ts` `loadBootstrap(): Bootstrap`, `useRaceState(bootstrap): RaceState`. `theme.ts`: `T` tokens, `DRIVER_META`, `PILL`, `SEGMENTS`, `segmentsOf(score)`, `fmtCost`, `fmtClock`, `fmtTok`, style objects `page`, `col`, `surface`, `pill(status)`, `dot(color, px)`. Build output `dist/ui.html` containing the literal marker `<!--BAKEOFF_DATA-->` just before `</head>`.
 
-- [ ] **Step 0: Read the handoff and write the tokens**
+All visual values below are copied from `design/handoff/design_handoff_bakeoff/Bakeoff Scoreboard.dc.html` (inline styles) and the README. There is no separate stylesheet: the handoff is written as inline styles and so is the app. Deviations are the ones agreed in SPEC.md section 10.
 
-Read `design/handoff/design_handoff_bakeoff/README.md` end to end and open `standalone/Bakeoff Scoreboard.html` in a browser. Write the tokens exactly as the README states them:
-
-```css
-/* ui/src/tokens.css  (values verbatim from the design handoff README) */
-:root {
-  --bg: #0A0A0F; --text: #F4F4F7; --muted: rgba(255,255,255,.55); --dim: rgba(255,255,255,.45);
-  --hairline: rgba(255,255,255,.08); --divider: rgba(255,255,255,.06); --surface: rgba(255,255,255,.02); --surface-2: rgba(255,255,255,.025); --track: rgba(255,255,255,.06);
-  --r-surface: 12px; --r-control: 6px; --r-pill: 999px; --r-seg: 3px; --r-card: 16px;
-  --c-claude: #F59E6B; --c-codex: #5EC8CE; --c-opencode: #E58BC7; --c-gemini: #9BCB6E;
-  --s-running: #60A5FA; --s-running-bg: rgba(96,165,250,.12); --s-done: #4ADE80; --s-done-bg: rgba(74,222,128,.12); --s-crashed: #F87171; --s-crashed-bg: rgba(248,113,113,.12);
-  --plus: #4ADE80; --minus: #F87171; --penalty: rgba(248,113,113,.65);
-  --seg-tests: rgba(214,224,255,.62); --seg-hidden: rgba(176,196,240,.5); --seg-lint: rgba(160,214,214,.4); --seg-ci: rgba(206,196,236,.32); --seg-diff: rgba(220,208,180,.26); --seg-judge: rgba(255,255,255,.18); --seg-zero: rgba(255,255,255,.06); --seg-na-border: rgba(255,255,255,.18);
-  --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif; --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-html { background: var(--bg); color: var(--text); font-family: var(--font); font-feature-settings: 'tnum'; }
-.page { min-width: 1200px; background-image: linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px); background-size: 32px 32px; }
-.col { width: 1200px; margin: 0 auto; padding: 36px 0 64px; }
-```
-
-Field mapping from the contract to the handoff's names: `agents[].score.total` → score; `score.maxPossible` → the denominator (not 100); `score.components` → `breakdown` (`visible_tests`→tests, `hidden_tests`→hidden, `typecheck`+`lint`→lint, `ci`, `diff`, `judge`; `awarded: null`→n/a dashed segment; `awarded: 0` with `max > 0`→`--seg-zero`); `score.tamperPenalty`→penalty zone width `|penalty| / 25`; `score.tamperFlags`→red receipts; `linesAdded/linesRemoved`→`+41 −12`; `filesTouched.length`→files; `visible_tests.detail`→`48/48 tests`; `exitCode`→`exit ok` / `exit 1`; `status`→pill; `prNumber`→`View PR #143`.
-
-- [ ] **Step 1: Write vite.config.ts, index.html, theme, data loader, and its test**
+- [ ] **Step 1: vite.config.ts, index.html, main.tsx, dev-data.ts**
 
 ```ts
 // ui/vite.config.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import { fileURLToPath } from 'node:url';
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
-  plugins: [react(), tailwindcss(), viteSingleFile()],
+  plugins: [react(), viteSingleFile()],
   resolve: { alias: { '@contract': fileURLToPath(new URL('../src/contract/index.ts', import.meta.url)) } },
-  build: { outDir: fileURLToPath(new URL('../dist', import.meta.url)), emptyOutDir: false, rollupOptions: { input: fileURLToPath(new URL('./index.html', import.meta.url)), output: { entryFileNames: 'ui.js' } } },
+  build: { outDir: fileURLToPath(new URL('../dist', import.meta.url)), emptyOutDir: false, rollupOptions: { input: fileURLToPath(new URL('./index.html', import.meta.url)) } },
 });
 ```
 
 ```html
 <!-- ui/index.html -->
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Bakeoff</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..900&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+html,body{margin:0;background:#0A0A0F;color:#F4F4F7;font-family:'Geist',system-ui,sans-serif;font-feature-settings:'tnum' 1;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+a{color:#F4F4F7;text-decoration:none}a:hover{color:#F4F4F7}
+button{font:inherit;color:inherit;cursor:pointer}
+@keyframes glowIn{from{opacity:0}to{opacity:1}}
+</style>
 <!--BAKEOFF_DATA-->
 </head>
-<body class="bg-zinc-950 text-zinc-100"><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
+<body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
 </html>
 ```
 
-After build, rename `dist/index.html` to `dist/ui.html` in the `build:ui` script: `"build:ui": "vite build --config ui/vite.config.ts && mv dist/index.html dist/ui.html"`.
+`build:ui` script: `"build:ui": "vite build --config ui/vite.config.ts && mv dist/index.html dist/ui.html"`.
+
+```tsx
+// ui/src/main.tsx
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { App } from './App';
+if (import.meta.env.DEV) await import('../dev-data');
+createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
+```
 
 ```ts
-// ui/src/theme.ts
-import type { DriverId } from '@contract';
+// ui/dev-data.ts  (DEV only)
+import events from '../src/contract/fixtures/events.jsonl?raw';
+(window as unknown as { __DEV_EVENTS__?: string }).__DEV_EVENTS__ = events;
+```
+
+- [ ] **Step 2: theme.ts with a failing test**
+
+```ts
+// test/ui/theme.test.ts
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fmtClock, fmtTok, segmentsOf } from '../../ui/src/theme';
+import { RunRecordSchema } from '../../src/contract/schema';
+
+const rec = RunRecordSchema.parse(JSON.parse(readFileSync('src/contract/fixtures/run.json', 'utf8')));
+
+describe('theme', () => {
+  it('formats', () => {
+    expect(fmtClock(412000)).toBe('6:52');
+    expect(fmtTok({ input: 118000, output: 6100, cacheRead: 0, cacheWrite: 0 })).toBe('118k / 6.1k');
+    expect(fmtTok(null)).toBe('—');
+  });
+  it('merges typecheck+lint, keeps n/a as dashed, sizes by the track max', () => {
+    const segs = segmentsOf(rec.agents[0]!.score!);
+    expect(segs.map((s) => s.id)).toEqual(['visible_tests', 'hidden_tests', 'checks', 'ci', 'diff', 'judge']);
+    const checks = segs.find((s) => s.id === 'checks')!;
+    expect(checks).toMatchObject({ awarded: 15, max: 15, na: false });
+    expect(segs.find((s) => s.id === 'ci')).toMatchObject({ na: true, max: 10 });
+    // track max = sum of all maxes with max > 0 = 50+20+15+10+10+15 = 120
+    expect(segs.reduce((n, s) => n + s.widthPct, 0)).toBeCloseTo(100, 5);
+    expect(segs.find((s) => s.id === 'visible_tests')!.widthPct).toBeCloseTo((50 / 120) * 100, 5);
+  });
+});
+```
+
+```ts
+// ui/src/theme.ts  (every literal value comes from the handoff README / markup)
+import type { AgentStatus, DriverId, ScoreBreakdown, TokenUsage } from '@contract';
+import type { CSSProperties } from 'react';
+
+export const T = {
+  bg: '#0A0A0F', text: '#F4F4F7', muted: 'rgba(255,255,255,.55)', dim: 'rgba(255,255,255,.45)', faint: 'rgba(255,255,255,.4)',
+  hairline: 'rgba(255,255,255,.08)', divider: 'rgba(255,255,255,.06)', surface: 'rgba(255,255,255,.02)', surface2: 'rgba(255,255,255,.025)', track: 'rgba(255,255,255,.06)',
+  plus: '#4ADE80', minus: '#F87171', penalty: 'rgba(248,113,113,.65)', zeroLine: 'rgba(255,255,255,.18)', naBorder: '1px dashed rgba(255,255,255,.18)',
+  mono: "'Geist Mono', ui-monospace, monospace",
+} as const;
+
 export const DRIVER_META: Record<DriverId, { name: string; color: string }> = {
   claude: { name: 'Claude Code', color: '#F59E6B' },
   codex: { name: 'Codex', color: '#5EC8CE' },
   opencode: { name: 'OpenCode', color: '#E58BC7' },
   gemini: { name: 'Gemini CLI', color: '#9BCB6E' },
 };
-export const COMPONENT_LABEL: Record<string, string> = { visible_tests: 'Tests', hidden_tests: 'Hidden', typecheck: 'Types', lint: 'Lint', ci: 'CI', diff: 'Diff', judge: 'Judge (subjective)' };
-export const fmtCost = (n: number | null) => (n === null ? 'cost n/a' : `$${n.toFixed(2)}`);
-export const fmtDuration = (ms: number) => { const s = Math.round(ms / 1000), m = Math.floor(s / 60); return m ? `${m}m${String(s % 60).padStart(2, '0')}s` : `${s}s`; };
+export const PILL: Record<AgentStatus, { label: string; fg: string; bg: string }> = {
+  running: { label: 'Running', fg: '#60A5FA', bg: 'rgba(96,165,250,.12)' },
+  ok: { label: 'Done', fg: '#4ADE80', bg: 'rgba(74,222,128,.12)' },
+  crashed: { label: 'Crashed', fg: '#F87171', bg: 'rgba(248,113,113,.12)' },
+  timeout: { label: 'Timed out', fg: '#F87171', bg: 'rgba(248,113,113,.12)' },
+  budget_exceeded: { label: 'Over budget', fg: '#F87171', bg: 'rgba(248,113,113,.12)' },
+};
+export const SEGMENTS = [
+  { id: 'visible_tests', name: 'Tests', color: 'rgba(214,224,255,.62)' },
+  { id: 'hidden_tests', name: 'Hidden tests', color: 'rgba(176,196,240,.5)' },
+  { id: 'checks', name: 'Lint & types', color: 'rgba(160,214,214,.4)' },
+  { id: 'ci', name: 'CI', color: 'rgba(206,196,236,.32)' },
+  { id: 'diff', name: 'Diff discipline', color: 'rgba(220,208,180,.26)' },
+  { id: 'judge', name: 'Judge', color: 'rgba(255,255,255,.18)' },
+] as const;
+export type SegmentId = (typeof SEGMENTS)[number]['id'];
+export interface Segment { id: SegmentId; name: string; color: string; max: number; awarded: number | null; na: boolean; widthPct: number }
+
+/** Merge typecheck+lint, drop max-0 components, size widths by the sum of all visible maxes (n/a segments keep their max as a dashed placeholder). */
+export function segmentsOf(score: ScoreBreakdown): Segment[] {
+  const get = (id: string) => score.components.find((c) => c.id === id);
+  const tc = get('typecheck'), lint = get('lint');
+  const merged = { id: 'checks', max: (tc?.max ?? 0) + (lint?.max ?? 0), awarded: tc?.awarded === null && lint?.awarded === null ? null : (tc?.awarded ?? 0) + (lint?.awarded ?? 0) };
+  const raw = SEGMENTS.map((s) => {
+    const c = s.id === 'checks' ? merged : get(s.id);
+    return { id: s.id, name: s.name, color: s.color, max: c?.max ?? 0, awarded: c?.awarded ?? null, na: (c?.awarded ?? null) === null };
+  }).filter((s) => s.max > 0);
+  const trackMax = raw.reduce((n, s) => n + s.max, 0) || 1;
+  return raw.map((s) => ({ ...s, widthPct: ((s.na ? s.max : Math.max(0, s.awarded ?? 0)) / trackMax) * 100 }));
+}
+
+export const fmtCost = (n: number | null) => (n === null ? 'n/a' : `$${n.toFixed(2)}`);
+export function fmtClock(ms: number): string { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+const k = (n: number) => (n >= 10000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+export const fmtTok = (t: TokenUsage | null) => (t ? `${k(t.input)} / ${k(t.output)}` : '—');
+
+export const page: CSSProperties = { position: 'relative', minHeight: '100vh', minWidth: 1200, overflow: 'clip', backgroundImage: 'linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px)', backgroundSize: '32px 32px' };
+export const col: CSSProperties = { position: 'relative', width: 1200, margin: '0 auto', padding: '36px 0 64px', display: 'flex', flexDirection: 'column', gap: 28 };
+export const surface: CSSProperties = { border: `1px solid ${T.hairline}`, background: T.surface, borderRadius: 12 };
+export const pill = (status: AgentStatus, size: 12 | 11 = 12): CSSProperties => ({ fontSize: size, fontWeight: 500, color: PILL[status].fg, background: PILL[status].bg, padding: size === 12 ? '3px 9px' : '2px 8px', borderRadius: 999 });
+export const dot = (color: string, px: number): CSSProperties => ({ width: px, height: px, borderRadius: '50%', background: color, display: 'block', flex: 'none' });
+export const ghostButton: CSSProperties = { fontSize: 13, fontWeight: 500, color: T.text, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.03)', padding: '7px 14px', borderRadius: 6 };
+```
+
+Run: `bun test test/ui/theme.test.ts` → FAIL, write `theme.ts`, run again → PASS.
+
+- [ ] **Step 3: data.ts with a failing test, then App.tsx**
+
+```ts
+// test/ui/data.test.ts
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { parseBootstrap } from '../../ui/src/data';
+
+describe('parseBootstrap', () => {
+  it('prefers the script tag, then window, then fallback', () => {
+    const fx = readFileSync('src/contract/fixtures/events.jsonl', 'utf8');
+    expect(parseBootstrap('{"mode":"live","eventsUrl":"/events"}', null, fx)).toEqual({ mode: 'live', eventsUrl: '/events' });
+    expect(parseBootstrap(null, { __BAKEOFF__: { mode: 'live', eventsUrl: '/x' } } as unknown as Window, fx).mode).toBe('live');
+    const b = parseBootstrap(null, null, fx);
+    expect(b.mode === 'static' && b.events.length).toBeGreaterThan(8);
+    expect(parseBootstrap(null, null, null)).toEqual({ mode: 'static', events: [] });
+  });
+});
 ```
 
 ```ts
 // ui/src/data.ts
 import { useEffect, useState } from 'react';
-import { RaceEventSchema, applyEvent, initialState, parseEventLines, reduceEvents, type RaceEvent, type RaceState } from '@contract';
+import { RaceEventSchema, applyEvent, initialState, parseEventLines, reduceEvents, type Ladder, type RaceEvent, type RaceState } from '@contract';
 
-export type Bootstrap = { mode: 'static'; events: RaceEvent[] } | { mode: 'live'; eventsUrl: string };
+export type Bootstrap = { mode: 'static'; events: RaceEvent[]; ladder?: Ladder } | { mode: 'live'; eventsUrl: string };
 declare global { interface Window { __BAKEOFF__?: Bootstrap } }
 
 export function parseBootstrap(json: string | null, win: Window | null, fallback: string | null): Bootstrap {
@@ -3698,79 +3829,172 @@ export function useRaceState(b: Bootstrap): RaceState {
 }
 ```
 
-```ts
-// ui/dev-data.ts  (imported only by main.tsx in DEV)
-import events from '../src/contract/fixtures/events.jsonl?raw';
-(window as unknown as { __DEV_EVENTS__?: string }).__DEV_EVENTS__ = events;
-```
-
-```ts
-// test/ui/data.test.ts
-import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { parseBootstrap } from '../../ui/src/data';
-
-describe('parseBootstrap', () => {
-  it('prefers the script tag, then window, then fallback', () => {
-    const fx = readFileSync('src/contract/fixtures/events.jsonl', 'utf8');
-    expect(parseBootstrap('{"mode":"live","eventsUrl":"/events"}', null, fx)).toEqual({ mode: 'live', eventsUrl: '/events' });
-    expect(parseBootstrap(null, { __BAKEOFF__: { mode: 'live', eventsUrl: '/x' } } as unknown as Window, fx).mode).toBe('live');
-    const b = parseBootstrap(null, null, fx);
-    expect(b.mode === 'static' && b.events.length).toBeGreaterThan(8);
-    expect(parseBootstrap(null, null, null)).toEqual({ mode: 'static', events: [] });
-  });
-});
-```
-
-- [ ] **Step 2: Run the test to verify it fails, then write the app shell and Scoreboard**
-
-Run: `bun test test/ui/data.test.ts` → FAIL until `ui/src/data.ts` exists.
-
-```tsx
-// ui/src/main.tsx
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import './tokens.css';
-import './styles.css';
-import { App } from './App';
-if (import.meta.env.DEV) await import('../dev-data');
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
-```
-
-```css
-/* ui/src/styles.css */
-@import "tailwindcss";
-:root { color-scheme: dark; }
-body { font-family: ui-sans-serif, system-ui, -apple-system, "Inter", sans-serif; }
-.num { font-variant-numeric: tabular-nums; font-family: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, monospace; }
-```
-
 ```tsx
 // ui/src/App.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { loadBootstrap, useRaceState } from './data';
 import { Scoreboard } from './screens/Scoreboard';
+import { T, ghostButton, page } from './theme';
 
 const bootstrap = loadBootstrap();
+type Tab = 'race' | 'scoreboard' | 'ladder';
 export function App() {
   const state = useRaceState(bootstrap);
-  const [tab, setTab] = useState<'race' | 'scoreboard' | 'ladder'>(state.finished ? 'scoreboard' : 'race');
-  const tabs = [['race', 'Race'], ['scoreboard', 'Scoreboard'], ['ladder', 'Ladder']] as const;
+  const [tab, setTab] = useState<Tab>(state.finished ? 'scoreboard' : 'race');
+  useEffect(() => { if (state.finished) setTab('scoreboard'); }, [state.finished]);
+  const tabs: [Tab, string][] = [['race', 'Race'], ['scoreboard', 'Scoreboard'], ['ladder', 'Ladder']];
   return (
-    <div className="min-h-screen max-w-6xl mx-auto px-6 py-6">
-      <header className="flex items-baseline justify-between mb-6">
-        <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">Bakeoff</div>
-          <h1 className="text-2xl font-semibold">{state.issue ? `#${state.issue.number} ${state.issue.title}` : 'No run loaded'}</h1>
-          <div className="text-sm text-zinc-500">{state.repo ? `${state.repo.owner}/${state.repo.name}` : ''} {state.runId ? `· run ${state.runId}` : ''}</div>
-        </div>
-        <nav className="flex gap-1 text-sm">
-          {tabs.map(([k, label]) => <button key={k} onClick={() => setTab(k)} className={`px-3 py-1 rounded ${tab === k ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}>{label}</button>)}
-        </nav>
-      </header>
+    <div style={page}>
+      <nav style={{ position: 'absolute', top: 36, right: 'calc(50% - 600px)', display: 'flex', gap: 8, zIndex: 1 }}>
+        {tabs.map(([k, label]) => <button key={k} onClick={() => setTab(k)} style={{ ...ghostButton, background: tab === k ? 'rgba(255,255,255,.08)' : ghostButton.background, color: tab === k ? T.text : T.muted }}>{label}</button>)}
+      </nav>
       {tab === 'scoreboard' && <Scoreboard state={state} />}
-      {tab === 'race' && <div className="text-zinc-500">Race view arrives in Task 29.</div>}
-      {tab === 'ladder' && <div className="text-zinc-500">Ladder arrives in Task 31.</div>}
+      {tab === 'race' && <div style={{ padding: 36, color: T.muted }}>Race view arrives in Task 29.</div>}
+      {tab === 'ladder' && <div style={{ padding: 36, color: T.muted }}>Ladder arrives in Task 31.</div>}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 4: Scoreboard screen and components (markup mirrors the handoff one-to-one)**
+
+```tsx
+// ui/src/components/Dot.tsx
+import { dot } from '../theme';
+export const Dot = ({ color, px }: { color: string; px: number }) => <span style={dot(color, px)} />;
+```
+
+```tsx
+// ui/src/components/Pill.tsx
+import type { AgentStatus } from '@contract';
+import { PILL, pill } from '../theme';
+export function Pill({ status, size = 12, label }: { status: AgentStatus; size?: 12 | 11; label?: string }) {
+  return <span style={pill(status, size)}>{label ?? PILL[status].label}</span>;
+}
+```
+
+```tsx
+// ui/src/components/WinnerSurface.tsx
+import { useEffect, useState } from 'react';
+import type { AgentResult } from '@contract';
+import { Dot } from './Dot';
+import { Pill } from './Pill';
+import { DRIVER_META, T, fmtClock, fmtCost } from '../theme';
+
+function useCountUp(target: number, ms = 1400): number {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const start = performance.now(); let raf = 0;
+    const tick = (t: number) => { const p = Math.min(1, (t - start) / ms); const e = 1 - Math.pow(1 - p, 3); setN(Math.round(target * e * 10) / 10); if (p < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return n;
+}
+const stat = (label: string, value: string) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <span style={{ fontSize: 13, fontWeight: 500, color: T.muted }}>{label}</span>
+    <span style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-.02em' }}>{value}</span>
+  </div>
+);
+export function WinnerSurface({ a }: { a: AgentResult }) {
+  const meta = DRIVER_META[a.driver];
+  const n = useCountUp(a.score?.total ?? 0);
+  const tests = a.score?.components.find((c) => c.id === 'visible_tests')?.detail.split(',')[0]?.replace(' passed', '') ?? '—';
+  return (
+    <div style={{ position: 'relative', border: `1px solid ${T.hairline}`, background: T.surface2, borderRadius: 12, padding: '28px 32px 30px', boxShadow: `inset 0 0 0 1px ${meta.color}22, inset 0 0 80px ${meta.color}14`, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Dot color={meta.color} px={8} /><span style={{ fontSize: 16, fontWeight: 500 }}>{meta.name}</span><Pill status={a.status} label={a.prUrl ? 'PR open' : undefined} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        <span style={{ fontSize: 136, lineHeight: 0.9, fontWeight: 700, letterSpacing: '-.04em' }}>{n}</span>
+        <span style={{ fontSize: 20, color: T.muted }}>/ {a.score?.maxPossible ?? 0}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 36 }}>
+        {stat('Cost', fmtCost(a.costUsd))}{stat('Duration', fmtClock(a.durationMs))}{stat('Tests', tests)}
+        {a.prUrl && <a href={a.prUrl} style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 500, color: T.bg, background: T.text, padding: '8px 14px', borderRadius: 6 }}>View PR #{a.prNumber}</a>}
+      </div>
+    </div>
+  );
+}
+```
+
+```tsx
+// ui/src/components/OthersColumn.tsx
+import type { AgentResult } from '@contract';
+import { Dot } from './Dot';
+import { Pill } from './Pill';
+import { DRIVER_META, T, fmtClock, fmtCost, surface } from '../theme';
+export function OthersColumn({ agents }: { agents: AgentResult[] }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {agents.map((a, i) => {
+        const meta = DRIVER_META[a.driver];
+        const tests = a.score?.components.find((c) => c.id === 'visible_tests')?.detail.split(',')[0]?.replace(' passed', '') ?? '—';
+        return (
+          <div key={a.driver} style={{ ...surface, flex: 1, padding: '16px 20px', display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 14, alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: T.muted }}>{a.rank ?? i + 2}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Dot color={meta.color} px={7} /><span style={{ fontSize: 14, fontWeight: 500 }}>{meta.name}</span><Pill status={a.status} size={11} /></div>
+              <div style={{ display: 'flex', gap: 14, fontSize: 12, color: T.muted }}><span>{fmtCost(a.costUsd)}</span><span>{fmtClock(a.durationMs)}</span><span>{tests}</span></div>
+            </div>
+            <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-.04em', lineHeight: 1 }}>{a.score ? a.score.total : 0}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+```
+
+```tsx
+// ui/src/components/Breakdown.tsx
+import type { AgentResult, TamperFlag } from '@contract';
+import { Dot } from './Dot';
+import { DRIVER_META, SEGMENTS, T, segmentsOf, surface } from '../theme';
+
+const FLAG_WORD: Record<TamperFlag['rule'], string> = { test_skipped: 'skipped test', test_deleted: 'deleted test', asserts_weakened: 'weakened asserts', config_write: 'edited config', hidden_path_write: 'wrote hidden path' };
+export const flagLabel = (f: TamperFlag) => `${FLAG_WORD[f.rule]}: ${f.file}`;
+
+export function Breakdown({ agents }: { agents: AgentResult[] }) {
+  const legend = [...SEGMENTS.map((s) => ({ name: s.name, color: s.color, border: 'none' })), { name: 'Penalty', color: T.penalty, border: 'none' }, { name: 'n/a', color: 'transparent', border: '1px dashed rgba(255,255,255,.3)' }];
+  return (
+    <div style={{ ...surface, display: 'flex', flexDirection: 'column', padding: '8px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0 12px', borderBottom: `1px solid ${T.divider}` }}>
+        <span style={{ fontSize: 13, fontWeight: 500 }}>Score breakdown</span>
+        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: T.muted }}>
+          {legend.map((l) => <span key={l.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: l.color, border: l.border, boxSizing: 'border-box', display: 'block' }} />{l.name}</span>)}
+        </div>
+      </div>
+      {agents.map((a, i) => {
+        const meta = DRIVER_META[a.driver];
+        const segs = a.score ? segmentsOf(a.score) : [];
+        const penalty = a.score?.tamperPenalty ?? 0;
+        const tests = a.score?.components.find((c) => c.id === 'visible_tests')?.detail.split(',')[0]?.replace(' passed', '') ?? '—';
+        return (
+          <div key={a.driver} style={{ display: 'grid', gridTemplateColumns: '150px 1fr 48px', gap: 20, alignItems: 'center', padding: '18px 0', borderBottom: i === agents.length - 1 ? 'none' : `1px solid ${T.divider}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Dot color={meta.color} px={7} /><span style={{ fontSize: 13, fontWeight: 500 }}>{meta.name}</span></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 4fr', alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', borderRight: `1px solid ${T.zeroLine}`, height: 6, alignItems: 'center' }}>
+                  {penalty < 0 && <span style={{ height: 6, borderRadius: '3px 0 0 3px', background: T.penalty, width: `${(Math.abs(penalty) / 25) * 100}%`, display: 'block' }} />}
+                </div>
+                <div style={{ display: 'flex', gap: 2, height: 6 }}>
+                  {a.score ? segs.map((s, j) => <span key={s.id} style={{ height: 6, width: `${s.widthPct}%`, borderRadius: j === 0 ? '3px 0 0 3px' : j === segs.length - 1 ? '0 3px 3px 0' : 0, background: s.na ? 'transparent' : (s.awarded ?? 0) > 0 ? s.color : 'rgba(255,255,255,.06)', border: s.na ? T.naBorder : 'none', boxSizing: 'border-box', display: 'block', flex: 'none' }} />)
+                    : <span style={{ fontSize: 12, color: T.faint, lineHeight: '6px' }}>No score, run {a.status === 'timeout' ? 'timed out' : a.status === 'budget_exceeded' ? 'went over budget' : 'crashed'}</span>}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: T.muted, paddingLeft: '20%' }}>
+                <span>{tests} tests</span>
+                <span><span style={{ color: T.plus }}>+{a.linesAdded}</span> <span style={{ color: T.minus }}>-{a.linesRemoved}</span></span>
+                <span>{a.filesTouched.length} files</span>
+                <span>exit {a.exitCode === 0 ? 'ok' : a.exitCode ?? a.status}</span>
+                {a.score?.tamperFlags.map((f, k) => <span key={k} style={{ color: T.minus }}>{flagLabel(f)}</span>)}
+              </div>
+            </div>
+            <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-.03em', textAlign: 'right' }}>{a.score ? a.score.total : 0}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -3778,147 +4002,65 @@ export function App() {
 
 ```tsx
 // ui/src/screens/Scoreboard.tsx
-import type { RaceState } from '@contract';
-import { Podium } from '../components/Podium';
-import { ComponentBars } from '../components/ComponentBars';
-import { Receipts } from '../components/Receipts';
-import { TamperFlags } from '../components/TamperFlags';
-import { Banner } from '../components/Banner';
-import { DRIVER_META } from '../theme';
+import type { RaceState, RunRecord } from '@contract';
+import { Breakdown } from '../components/Breakdown';
+import { OthersColumn } from '../components/OthersColumn';
+import { Pill } from '../components/Pill';
+import { WinnerSurface } from '../components/WinnerSurface';
+import { DRIVER_META, T, col, fmtClock, fmtCost, ghostButton } from '../theme';
 
 export function Scoreboard({ state }: { state: RaceState }) {
   const rec = state.record;
-  if (!rec) return <div className="text-zinc-500">Race still running…</div>;
-  const ordered = [...rec.agents].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
-  const md = () => navigator.clipboard.writeText(toMarkdown(rec));
+  if (!rec) return <div style={{ ...col }}><span style={{ color: T.muted }}>Race still running.</span></div>;
+  const ranked = [...rec.agents].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+  const winner = ranked[0]!;
+  const wc = DRIVER_META[winner.driver].color;
   return (
-    <div className="space-y-8">
-      {rec.baseline.testsGreen === false && <Banner tone="warn">Tests were already failing on {rec.repo.baseSha.slice(0, 7)}. Visible-test points are unreliable for this run.</Banner>}
-      <Podium agents={rec.agents} />
-      <div className="flex gap-2 text-sm">
-        <button onClick={md} className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700">Copy markdown</button>
-        <a href={`./${rec.id}.png`} className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700">Share card</a>
+    <>
+      <div style={{ position: 'absolute', left: '50%', top: 120, width: 1100, height: 620, transform: 'translateX(-50%)', pointerEvents: 'none', background: `radial-gradient(ellipse at 35% 40%, ${wc}1A 0%, ${wc}0A 30%, transparent 65%)`, animation: 'glowIn 1.6s ease-out both' }} />
+      <div style={col}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 15, fontWeight: 500 }}>{rec.issue.title}</span>
+          <span style={{ fontSize: 13, color: T.muted }}>{rec.repo.owner}/{rec.repo.name} #{rec.issue.number}</span>
+          <span style={{ fontSize: 13, color: T.muted }}>{rec.id}</span>
+          <span style={{ marginLeft: 'auto' }}><Pill status="ok" label="Finished" /></span>
+        </div>
+        {rec.baseline.testsGreen === false && <div style={{ fontSize: 13, color: '#FBBF24' }}>Tests were already failing on {rec.repo.baseSha.slice(0, 7)}. Visible-test points are unreliable for this run.</div>}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, alignItems: 'stretch' }}>
+          <WinnerSurface a={winner} />
+          <OthersColumn agents={ranked.slice(1)} />
+        </div>
+        <Breakdown agents={ranked} />
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <a href={`./${rec.id}.png`} style={ghostButton}>Share card</a>
+          <button onClick={() => navigator.clipboard.writeText(toMarkdown(rec))} style={ghostButton}>Copy results</button>
+        </div>
       </div>
-      <div className="space-y-6">
-        {ordered.map((a) => (
-          <section key={a.driver} className="rounded-lg border border-zinc-800 p-4" style={{ borderLeftColor: DRIVER_META[a.driver].color, borderLeftWidth: 4 }}>
-            <div className="flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold">{a.rank ? `#${a.rank} ` : ''}{DRIVER_META[a.driver].name}</h2>
-              <div className="num text-2xl">{a.score ? `${a.score.total} / ${a.score.maxPossible}` : a.status}</div>
-            </div>
-            {a.score && <ComponentBars score={a.score} />}
-            {a.score && <TamperFlags flags={a.score.tamperFlags} />}
-            <Receipts agent={a} />
-            {a.status !== 'ok' && <pre className="mt-3 text-xs text-zinc-400 bg-zinc-900 rounded p-2 overflow-x-auto">{a.logTail}</pre>}
-          </section>
-        ))}
-      </div>
-    </div>
+    </>
   );
 }
 
-export function toMarkdown(rec: NonNullable<RaceState['record']>): string {
+export function toMarkdown(rec: RunRecord): string {
   const rows = [...rec.agents].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99)).map((a) =>
-    `| ${a.rank ?? '-'} | ${DRIVER_META[a.driver].name} | ${a.score ? `${a.score.total}/${a.score.maxPossible}` : a.status} | ${a.costUsd === null ? 'n/a' : `$${a.costUsd.toFixed(2)}`} | ${Math.round(a.durationMs / 1000)}s | ${a.prUrl ? `[#${a.prNumber}](${a.prUrl})` : '-'} |`);
+    `| ${a.rank ?? '-'} | ${DRIVER_META[a.driver].name} | ${a.score ? `${a.score.total}/${a.score.maxPossible}` : a.status} | ${fmtCost(a.costUsd)} | ${fmtClock(a.durationMs)} | ${a.prUrl ? `[#${a.prNumber}](${a.prUrl})` : '-'} |`);
   return [`**Bakeoff** · [#${rec.issue.number} ${rec.issue.title}](${rec.issue.url})`, '', '| # | Agent | Score | Cost | Time | PR |', '|---|---|---|---|---|---|', ...rows].join('\n');
 }
 ```
 
-```tsx
-// ui/src/components/Podium.tsx
-import type { AgentResult } from '@contract';
-import { DRIVER_META, fmtCost, fmtDuration } from '../theme';
-export function Podium({ agents }: { agents: AgentResult[] }) {
-  const top = agents.filter((a) => a.rank).sort((a, b) => a.rank! - b.rank!).slice(0, 3);
-  const order = [top[1], top[0], top[2]].filter(Boolean) as AgentResult[];
-  const h: Record<number, string> = { 1: 'h-40', 2: 'h-28', 3: 'h-20' };
-  return (
-    <div className="flex items-end justify-center gap-4">
-      {order.map((a) => (
-        <div key={a.driver} className="flex flex-col items-center w-48">
-          <div className="text-sm text-zinc-400">{DRIVER_META[a.driver].name}</div>
-          <div className="num text-3xl">{a.score?.total}</div>
-          <div className="text-xs text-zinc-500">{fmtCost(a.costUsd)} · {fmtDuration(a.durationMs)}</div>
-          {a.prUrl && <a href={a.prUrl} className="text-xs underline text-zinc-300 mt-1">View PR</a>}
-          <div className={`w-full mt-2 rounded-t ${h[a.rank!]}`} style={{ background: DRIVER_META[a.driver].color }} />
-          <div className="num text-xs text-zinc-500 mt-1">{['🥇', '🥈', '🥉'][a.rank! - 1]}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
-```tsx
-// ui/src/components/ComponentBars.tsx
-import type { ScoreBreakdown } from '@contract';
-import { COMPONENT_LABEL } from '../theme';
-export function ComponentBars({ score }: { score: ScoreBreakdown }) {
-  const comps = score.components.filter((c) => c.max > 0);
-  const totalMax = comps.reduce((s, c) => s + c.max, 0) + Math.abs(score.tamperPenalty);
-  return (
-    <div className="mt-3">
-      <div className="flex h-4 w-full overflow-hidden rounded bg-zinc-900">
-        {comps.map((c) => (
-          <div key={c.id} title={`${COMPONENT_LABEL[c.id]}: ${c.awarded ?? 'n/a'}/${c.max} ${c.detail}`} style={{ width: `${(c.max / totalMax) * 100}%` }} className="relative border-r border-zinc-950">
-            <div className={`h-full ${c.awarded === null ? 'bg-zinc-700/40' : 'bg-emerald-500'}`} style={{ width: c.awarded === null ? '100%' : `${(c.awarded / c.max) * 100}%` }} />
-          </div>
-        ))}
-        {score.tamperPenalty < 0 && <div title={`Tamper penalty ${score.tamperPenalty}`} style={{ width: `${(Math.abs(score.tamperPenalty) / totalMax) * 100}%` }} className="h-full bg-red-600" />}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {comps.map((c) => <span key={c.id} className={c.awarded === null ? 'text-zinc-500' : 'text-zinc-300'}>{COMPONENT_LABEL[c.id]} <span className="num">{c.awarded === null ? 'n/a' : c.awarded}/{c.max}</span></span>)}
-        {score.tamperPenalty < 0 && <span className="text-red-400">Tamper <span className="num">{score.tamperPenalty}</span></span>}
-      </div>
-    </div>
-  );
-}
-```
-
-```tsx
-// ui/src/components/Receipts.tsx
-import type { AgentResult } from '@contract';
-import { fmtCost, fmtDuration } from '../theme';
-export function Receipts({ agent: a }: { agent: AgentResult }) {
-  const tests = a.score?.components.find((c) => c.id === 'visible_tests')?.detail ?? '';
-  const items = [tests, `+${a.linesAdded}/−${a.linesRemoved}`, `${a.filesTouched.length} files`, `${fmtCost(a.costUsd)} est.`, fmtDuration(a.durationMs), a.prUrl ? `PR #${a.prNumber}` : 'no PR', `exit ${a.exitCode ?? '—'}`];
-  return <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400 num">{items.map((t, i) => <span key={i}>{t}</span>)}</div>;
-}
-```
-
-```tsx
-// ui/src/components/TamperFlags.tsx
-import type { TamperFlag } from '@contract';
-export function TamperFlags({ flags }: { flags: TamperFlag[] }) {
-  if (!flags.length) return null;
-  return <ul className="mt-3 space-y-1">{flags.map((f, i) => <li key={i} className="text-xs text-red-400">🚩 <b>{f.rule}</b> {f.file}: {f.detail}</li>)}</ul>;
-}
-```
-
-```tsx
-// ui/src/components/Banner.tsx
-export function Banner({ tone, children }: { tone: 'warn' | 'info'; children: React.ReactNode }) {
-  return <div className={`rounded px-3 py-2 text-sm ${tone === 'warn' ? 'bg-amber-500/15 text-amber-200 border border-amber-500/40' : 'bg-zinc-800 text-zinc-200'}`}>{children}</div>;
-}
-```
-
-- [ ] **Step 3: Restyle to the handoff**
-
-Replace the Tailwind classes in `Scoreboard.tsx`, `Podium.tsx`, `ComponentBars.tsx`, `Receipts.tsx`, `TamperFlags.tsx` and `Banner.tsx` with the handoff's Scoreboard layout: header row (title 15/500, repo + run muted 13, right `Finished` pill); podium grid `1.6fr 1fr` (winner surface with inner glow and `radial-gradient` page glow in the winner's color, score 136/700 with `/ {maxPossible}` 20 muted, Cost / Duration / Tests stat pairs, white `View PR #n` button; right column three rows rank | dot + name + pill | `$0.92 · 4:58 · 48/48` | score 32/700); breakdown surface with `150px 1fr 48px` rows, `1fr 4fr` bar grid whose left cell is the penalty zone with a 1px zero line, 6px segments with 2px gaps, receipts line indented 20%, `No score, run crashed` for non-ok agents; footer ghost buttons `Share card` / `Copy results`. Copy the CSS from `design/handoff/design_handoff_bakeoff/standalone/Bakeoff Scoreboard.html` into `ui/src/screens/scoreboard.css` and adapt selectors; keep the data wiring from Step 2. Load-time motion: page glow `opacity 0→1` 1.6s ease-out, winner score counts up over 1.4s cubic ease-out, nothing else animates.
-
-- [ ] **Step 4: Run test, build, look at it**
+- [ ] **Step 5: Run tests, build, compare against the handoff**
 
 ```bash
 bun test && bun run typecheck && bun run build:ui && grep -c 'BAKEOFF_DATA' dist/ui.html
-bunx vite --config ui/vite.config.ts   # open the printed URL, Scoreboard tab shows the fixture: claude 74.7, codex 48.7 with a red tamper segment, opencode timeout with log tail
+bunx vite --config ui/vite.config.ts   # open the URL; Scoreboard tab renders the fixture
+open "design/handoff/design_handoff_bakeoff/standalone/Bakeoff Scoreboard.html"
 ```
 
-Expected: `grep` prints 1. Put the dev-server tab beside `standalone/Bakeoff Scoreboard.html`; they should match except for the agreed deviations. Screenshot the scoreboard.
+Expected: `grep` prints 1. Side by side with the handoff: same header, winner surface with glow and count-up, others column, breakdown rows with a dashed n/a CI segment and a red penalty segment on Codex, footer buttons. Differences allowed: `/ 75` instead of `/ 100`, `Lint & types` legend entry, `PR open` pill on the winner. Screenshot it.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add -A && git commit -m "feat(ui): vite single-file app with scoreboard screen"
+git add -A && git commit -m "feat(ui): vite single-file app with scoreboard screen from the design handoff"
 ```
 
 ---
@@ -4002,7 +4144,7 @@ git add -A && git commit -m "feat(cli): static html scoreboard export"
 - Modify: `src/cli/index.ts`
 
 **Interfaces:**
-- Produces: `renderCardSvg(rec: RunRecord): Promise<string>` (satori, 1200×630), `renderCardPng(rec): Promise<Uint8Array>` (resvg), `shareCommand(id)` writing `.bakeoff/runs/<id>.png`.
+- Produces: `renderCardSvg(rec: RunRecord): Promise<string>` (satori, 1200×630, layout and values from the handoff's Share Card file, text and color only, no emoji), `renderCardPng(rec): Promise<Uint8Array>` (resvg), `shareCommand(id)` writing `.bakeoff/runs/<id>.png`.
 
 - [ ] **Step 1: Bundle a font**
 
@@ -4040,7 +4182,7 @@ const rec = RunRecordSchema.parse(JSON.parse(readFileSync('src/contract/fixtures
 describe('card', () => {
   it('renders an svg with the podium and a png of the right size', async () => {
     const svg = await renderCardSvg(rec);
-    expect(svg).toContain('Claude Code'); expect(svg).toContain('74.7'); expect(svg).toContain('config_write');
+    expect(svg).toContain('Claude Code'); expect(svg).toContain('74.7'); expect(svg).toContain('edited config vitest.config.ts'); expect(svg).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
     const png = await renderCardPng(rec);
     expect(png.length).toBeGreaterThan(10_000);
     expect(png.subarray(0, 8)).toEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
@@ -4050,41 +4192,69 @@ describe('card', () => {
 
 - [ ] **Step 3: Run to verify failure, then write card.tsx and share.ts**
 
-Layout per handoff section 4 (`design/handoff/design_handoff_bakeoff/README.md`): 1200×630, bg `#0A0A0F`, padding 56/64, no grid texture, radial glow 820×620 in the winner's color behind the left card, title 26/500 + repo 20 muted, grid `1.25fr 1fr` gap 40, winner card 16px radius with inner glow and padding 32/36 (14px dot + name 28/500, score 180/700 −0.05em + `/ {maxPossible}` 28 muted, Cost/Duration/Tests 16 muted over 30/600), right column three equal rows (rank 18 muted | 10px dot + name 22/500 over `$0.92 · 4:58` 16 muted | score 52/700), wordmark bottom-right (8px white square + `bakeoff` 16/600). The JSX below is the data wiring; set the styles from that spec. satori supports flexbox and `linear-gradient`/`radial-gradient` backgrounds, not CSS grid: build the two-column layout with `display: flex`.
+Every value below is from `design/handoff/design_handoff_bakeoff/Bakeoff Share Card.dc.html`. satori supports flexbox and gradient backgrounds, not CSS grid, so the handoff's `grid-template-columns: 1.25fr 1fr` becomes two flex children with `flex: 1.25` and `flex: 1`, and the others' `28px 1fr auto` row becomes a flex row. No emoji anywhere; tamper flags are red text.
 
 ```tsx
 // src/render/card.tsx
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
-import type { RunRecord } from '@contract';
+import type { RunRecord, TamperFlag } from '@contract';
 import { fonts } from './fonts';
 
 const META: Record<string, { name: string; color: string }> = { claude: { name: 'Claude Code', color: '#F59E6B' }, codex: { name: 'Codex', color: '#5EC8CE' }, opencode: { name: 'OpenCode', color: '#E58BC7' }, gemini: { name: 'Gemini CLI', color: '#9BCB6E' } };
-const cost = (n: number | null) => (n === null ? 'cost n/a' : `$${n.toFixed(2)} est.`);
-const dur = (ms: number) => { const s = Math.round(ms / 1000), m = Math.floor(s / 60); return m ? `${m}m${String(s % 60).padStart(2, '0')}s` : `${s}s`; };
+const MUTED = 'rgba(255,255,255,.55)';
+const FLAG_WORD: Record<TamperFlag['rule'], string> = { test_skipped: 'skipped test', test_deleted: 'deleted test', asserts_weakened: 'weakened asserts', config_write: 'edited config', hidden_path_write: 'wrote hidden path' };
+const cost = (n: number | null) => (n === null ? 'n/a' : `$${n.toFixed(2)}`);
+const clock = (ms: number) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const testsOf = (a: RunRecord['agents'][number]) => a.score?.components.find((c) => c.id === 'visible_tests')?.detail.split(',')[0]?.replace(' passed', '') ?? '—';
+const stat = (label: string, value: string) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <span style={{ fontSize: 16, fontWeight: 500, color: MUTED }}>{label}</span>
+    <span style={{ fontSize: 30, fontWeight: 600, letterSpacing: '-0.02em' }}>{value}</span>
+  </div>
+);
 
 export async function renderCardSvg(rec: RunRecord): Promise<string> {
-  const ordered = [...rec.agents].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
-  const flags = rec.agents.flatMap((a) => (a.score?.tamperFlags ?? []).map((f) => `${META[a.driver]!.name}: ${f.rule} ${f.file}`));
+  const ranked = [...rec.agents].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+  const w = ranked[0]!;
+  const wc = META[w.driver]!.color;
+  const flags = ranked.flatMap((a) => (a.score?.tamperFlags ?? []).map((f) => `${META[a.driver]!.name}: ${FLAG_WORD[f.rule]} ${f.file}`));
   return satori(
-    <div style={{ width: 1200, height: 630, display: 'flex', flexDirection: 'column', background: '#09090b', color: '#fafafa', padding: 48, fontFamily: 'Geist' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 22, color: '#a1a1aa' }}>
-        <span>BAKEOFF · {rec.repo.owner}/{rec.repo.name}</span><span>run {rec.id}</span>
+    <div style={{ width: 1200, height: 630, position: 'relative', overflow: 'hidden', background: '#0A0A0F', color: '#F4F4F7', padding: '56px 64px', display: 'flex', flexDirection: 'column', gap: 40, fontFamily: 'Geist' }}>
+      <div style={{ position: 'absolute', left: -80, top: 40, width: 820, height: 620, borderRadius: 400, background: `radial-gradient(ellipse at 40% 45%, ${wc}2E 0%, ${wc}12 35%, transparent 70%)` }} />
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+        <span style={{ fontSize: 26, fontWeight: 500, letterSpacing: '-0.01em' }}>{rec.issue.title}</span>
+        <span style={{ fontSize: 20, color: MUTED }}>{rec.repo.owner}/{rec.repo.name} #{rec.issue.number}</span>
       </div>
-      <div style={{ fontSize: 40, fontWeight: 700, marginTop: 12 }}>#{rec.issue.number} {rec.issue.title}</div>
-      <div style={{ display: 'flex', gap: 24, marginTop: 36, flex: 1 }}>
-        {ordered.map((a) => (
-          <div key={a.driver} style={{ display: 'flex', flexDirection: 'column', flex: 1, borderTop: `8px solid ${META[a.driver]!.color}`, background: '#18181b', padding: 24, borderRadius: 12 }}>
-            <div style={{ fontSize: 26, color: '#d4d4d8' }}>{a.rank ? `#${a.rank} ` : ''}{META[a.driver]!.name}</div>
-            <div style={{ fontSize: a.score ? 72 : 40, fontWeight: 700, marginTop: 8 }}>{a.score ? `${a.score.total}` : a.status}</div>
-            <div style={{ fontSize: 20, color: '#a1a1aa' }}>{a.score ? `of ${a.score.maxPossible}` : ''}</div>
-            <div style={{ fontSize: 22, marginTop: 'auto', color: '#e4e4e7' }}>{cost(a.costUsd)} · {dur(a.durationMs)}</div>
+      <div style={{ display: 'flex', gap: 40, flex: 1 }}>
+        <div style={{ flex: 1.25, border: '1px solid rgba(255,255,255,.1)', background: 'rgba(255,255,255,.03)', borderRadius: 16, padding: '32px 36px', boxShadow: `inset 0 0 0 1px ${wc}26, inset 0 0 90px ${wc}18`, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ width: 14, height: 14, borderRadius: 7, background: wc, display: 'flex' }} />
+            <span style={{ fontSize: 28, fontWeight: 500 }}>{META[w.driver]!.name}</span>
           </div>
-        ))}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+            <span style={{ fontSize: 180, lineHeight: 0.85, fontWeight: 700, letterSpacing: '-0.05em' }}>{w.score ? String(w.score.total) : w.status}</span>
+            <span style={{ fontSize: 28, color: MUTED }}>/ {w.score?.maxPossible ?? 0}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 40 }}>{stat('Cost', cost(w.costUsd))}{stat('Duration', clock(w.durationMs))}{stat('Tests', testsOf(w))}</div>
+        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {ranked.slice(1, 4).map((a, i) => (
+            <div key={a.driver} style={{ flex: 1, border: '1px solid rgba(255,255,255,.1)', background: 'rgba(255,255,255,.025)', borderRadius: 16, padding: '0 28px', display: 'flex', alignItems: 'center', gap: 16 }}>
+              <span style={{ width: 28, fontSize: 18, fontWeight: 500, color: MUTED }}>{a.rank ?? i + 2}</span>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ width: 10, height: 10, borderRadius: 5, background: META[a.driver]!.color, display: 'flex' }} /><span style={{ fontSize: 22, fontWeight: 500 }}>{META[a.driver]!.name}</span></div>
+                <span style={{ fontSize: 16, color: MUTED }}>{a.score ? `${cost(a.costUsd)} · ${clock(a.durationMs)}` : a.status.replace('_', ' ')}</span>
+              </div>
+              <span style={{ fontSize: 52, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1 }}>{a.score ? String(a.score.total) : '0'}</span>
+            </div>
+          ))}
+        </div>
       </div>
-      {flags.length > 0 && <div style={{ display: 'flex', marginTop: 20, fontSize: 20, color: '#f87171' }}>🚩 {flags.join('   ')}</div>}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, fontSize: 18, color: '#71717a' }}>
-        <span>Deterministic scoring · tamper detection · per-repo Elo-style ladder</span><span>bakeoff-dev/bakeoff</span>
+      {flags.length > 0 && <div style={{ position: 'absolute', left: 64, bottom: 40, display: 'flex', fontSize: 16, color: '#F87171' }}>{flags.join('   ')}</div>}
+      <div style={{ position: 'absolute', right: 64, bottom: 40, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ width: 8, height: 8, borderRadius: 2, background: '#F4F4F7', display: 'flex' }} />
+        <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.02em' }}>bakeoff</span>
       </div>
     </div>,
     { width: 1200, height: 630, fonts: fonts() },
@@ -4112,7 +4282,7 @@ export async function shareCommand(id: string): Promise<void> {
 }
 ```
 
-Register `program.command('share <id>').action(shareCommand)` and call `shareCommand(runId)` at the end of `runCommand`. `card.tsx` needs `"jsxImportSource": "react"` to be resolvable; add `react` to `dependencies` (it is used at runtime by satori's JSX) or write the element tree with `React.createElement`-free object literals if you prefer to keep react out of runtime deps. Recommended: move `react` and `react-dom` to `dependencies`.
+Register `program.command('share <id>').action(shareCommand)` and call `shareCommand(runId)` at the end of `runCommand`. `card.tsx` uses JSX at runtime, so move `react` and `react-dom` from `devDependencies` to `dependencies`.
 
 - [ ] **Step 4: Run tests, generate a real card, commit**
 
@@ -4224,18 +4394,14 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(cli): SSE ser
 ### Task 29: Race view screen
 
 **Files:**
-- Create: `ui/src/screens/Race.tsx`, `ui/src/components/Lane.tsx`, `ui/src/components/SpendBar.tsx`, `ui/src/components/StatusPill.tsx`, `ui/src/components/LogDrawer.tsx`, `ui/src/useNow.ts`
+- Create: `ui/src/screens/Race.tsx`, `ui/src/components/Lane.tsx`, `ui/src/useNow.ts`
 - Modify: `ui/src/App.tsx` (render `<Race state={state} bootstrap={bootstrap} />`)
 
 **Interfaces:**
-- Consumes: `RaceState.agents: AgentLane[]`, `state.caps.budgetUsd`, `state.caps.timeoutMs`.
-- Produces: `Race` screen: top bar "N of M running", one `Lane` per agent with timer (elapsed since `startedAt` while running, else `durationMs`), `SpendBar` (`costUsd / budgetUsd`; "cost n/a" bar rendered striped when null), tokens, files touched, `lastAction`, `StatusPill`, click to expand `LogDrawer` (shows `record.agents[i].logTail` when finished; otherwise "log available when the agent exits"), and an "Abort" button visible only in live mode that POSTs `/abort/<driver>`.
+- Consumes: `RaceState.agents: AgentLane[]`, `state.caps.budgetUsd`, `Pill`, `Dot`, `theme.ts`.
+- Produces: `Race` screen mirroring `design/handoff/design_handoff_bakeoff/Bakeoff Race.dc.html`: header with `N of M running`, one surface with stacked lanes; each lane has row 1 `220px 1fr auto` (dot + name + pill | last action | elapsed / tokens / files), row 2 `1fr 64px` (cost track with gradient fill, cost label above the fill's end, budget marker | `$3.00 budget`), a click-toggled log drawer in Geist Mono, and in live mode an `Abort` ghost button for running agents that POSTs `/abort/<driver>`.
 
-- [ ] **Step 0: Visual spec**
-
-Handoff section 2 (`design/handoff/design_handoff_bakeoff/README.md`, `standalone/Bakeoff Race.html`): one surface containing stacked lanes with `.06` dividers; lane row 1 grid `220px 1fr auto` (8px dot + name 15/500 + pill | last action 13 dim, single-line ellipsis | elapsed 18/600, `118k / 6.1k` tokens as input / output, files count); row 2 grid `1fr 64px` with a 6px cost track, fill `linear-gradient(90deg, <agent>33, <agent>CC)` sized `costUsd / budget` with `transition: width .6s linear`, cost label 13/600 in the agent color above the fill's right end, 1×12px budget marker and `$3.00 budget` 12 muted; log drawer in Geist Mono 12/1.5 dim with `Error` lines red and `✓` lines green. Header right text `N of M running`. Cost `null` renders the track empty with the label `cost n/a`. The components below are the wiring; style them from the handoff.
-
-- [ ] **Step 1: Write useNow and the components**
+- [ ] **Step 1: useNow, Lane, Race**
 
 ```ts
 // ui/src/useNow.ts
@@ -4248,65 +4414,54 @@ export function useNow(active: boolean): number {
 ```
 
 ```tsx
-// ui/src/components/StatusPill.tsx
-import type { AgentStatus } from '@contract';
-const TONE: Record<AgentStatus, string> = { running: 'bg-sky-500/20 text-sky-300', ok: 'bg-emerald-500/20 text-emerald-300', timeout: 'bg-amber-500/20 text-amber-300', crashed: 'bg-red-500/20 text-red-300', budget_exceeded: 'bg-red-500/20 text-red-300' };
-export function StatusPill({ status, prUrl }: { status: AgentStatus; prUrl: string | null }) {
-  const label = status === 'ok' ? (prUrl ? 'PR open' : 'done') : status.replace('_', ' ');
-  return <span className={`px-2 py-0.5 rounded-full text-xs uppercase tracking-wider ${TONE[status]}`}>{label}</span>;
-}
-```
-
-```tsx
-// ui/src/components/SpendBar.tsx
-export function SpendBar({ cost, budget, color }: { cost: number | null; budget: number; color: string }) {
-  const pct = cost === null ? 100 : Math.min(100, (cost / budget) * 100);
-  return (
-    <div className="h-2 w-full rounded bg-zinc-800 overflow-hidden" title={cost === null ? 'cost unavailable' : `$${cost.toFixed(2)} of $${budget.toFixed(2)}`}>
-      <div className="h-full" style={{ width: `${pct}%`, background: cost === null ? 'repeating-linear-gradient(45deg,#3f3f46 0 6px,#27272a 6px 12px)' : color }} />
-    </div>
-  );
-}
-```
-
-```tsx
-// ui/src/components/LogDrawer.tsx
-export function LogDrawer({ text }: { text: string }) {
-  return <pre className="mt-3 max-h-64 overflow-auto rounded bg-zinc-950 p-3 text-xs text-zinc-300">{text || 'log available when the agent exits'}</pre>;
-}
-```
-
-```tsx
 // ui/src/components/Lane.tsx
 import { useState } from 'react';
 import type { AgentLane, RunRecord } from '@contract';
-import { DRIVER_META, fmtCost, fmtDuration } from '../theme';
-import { SpendBar } from './SpendBar';
-import { StatusPill } from './StatusPill';
-import { LogDrawer } from './LogDrawer';
+import { Dot } from './Dot';
+import { Pill } from './Pill';
+import { DRIVER_META, T, fmtClock, fmtCost, fmtTok, ghostButton } from '../theme';
 import { useNow } from '../useNow';
 
-export function Lane({ lane, budget, record, live }: { lane: AgentLane; budget: number; record: RunRecord | null; live: boolean }) {
+const logColor = (line: string) => (line.startsWith('Error') ? 'rgba(248,113,113,.8)' : line.startsWith('✓') ? 'rgba(74,222,128,.7)' : T.dim);
+
+export function Lane({ lane, budget, record, live, last }: { lane: AgentLane; budget: number; record: RunRecord | null; live: boolean; last: boolean }) {
   const [open, setOpen] = useState(false);
   const running = lane.status === 'running';
   const now = useNow(running);
   const elapsed = running && lane.startedAt ? now - Date.parse(lane.startedAt) : (lane.durationMs ?? 0);
   const meta = DRIVER_META[lane.driver];
+  const fillPct = lane.costUsd === null ? 0 : Math.min(100, (lane.costUsd / budget) * 100);
   const tail = record?.agents.find((a) => a.driver === lane.driver)?.logTail ?? '';
-  const abort = (e: React.MouseEvent) => { e.stopPropagation(); fetch(`/abort/${lane.driver}`, { method: 'POST' }); };
+  const abort = (e: React.MouseEvent) => { e.stopPropagation(); void fetch(`/abort/${lane.driver}`, { method: 'POST' }); };
   return (
-    <div onClick={() => setOpen(!open)} className="cursor-pointer rounded-lg border border-zinc-800 bg-zinc-900/40 p-4" style={{ borderLeftColor: meta.color, borderLeftWidth: 6 }}>
-      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-6">
-        <div className="text-lg font-semibold">{meta.name}</div>
-        <div className="num text-3xl">{fmtDuration(elapsed)}</div>
-        <div className="num text-xl">{fmtCost(lane.costUsd)}</div>
-        <div className="num text-sm text-zinc-400">{lane.tokens ? `${((lane.tokens.input + lane.tokens.output + lane.tokens.cacheRead) / 1000).toFixed(0)}k tok` : '—'} · {lane.filesTouched} files</div>
-        <div className="flex items-center gap-2"><StatusPill status={lane.status} prUrl={lane.prUrl} />{live && running && <button onClick={abort} className="text-xs text-zinc-500 hover:text-red-400">abort</button>}</div>
+    <div style={{ borderBottom: last ? 'none' : `1px solid ${T.divider}` }}>
+      <div onClick={() => setOpen(!open)} style={{ cursor: 'pointer', padding: '18px 24px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr auto', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Dot color={meta.color} px={8} /><span style={{ fontSize: 15, fontWeight: 500 }}>{meta.name}</span><Pill status={lane.status} size={11} label={lane.status === 'ok' && lane.prUrl ? 'PR open' : undefined} />
+          </div>
+          <span style={{ fontSize: 13, color: T.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{lane.lastAction || (running ? 'starting' : '')}</span>
+          <div style={{ display: 'flex', gap: 28, alignItems: 'baseline' }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}><span style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-.02em' }}>{fmtClock(elapsed)}</span><span style={{ fontSize: 12, fontWeight: 500, color: T.muted }}>elapsed</span></div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}><span style={{ fontSize: 14, fontWeight: 500 }}>{fmtTok(lane.tokens)}</span><span style={{ fontSize: 12, fontWeight: 500, color: T.muted }}>tokens</span></div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}><span style={{ fontSize: 14, fontWeight: 500 }}>{lane.filesTouched}</span><span style={{ fontSize: 12, fontWeight: 500, color: T.muted }}>files</span></div>
+            {live && running && <button onClick={abort} style={{ ...ghostButton, padding: '3px 9px', fontSize: 12 }}>Abort</button>}
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 64px', alignItems: 'center', gap: 14 }}>
+          <div style={{ position: 'relative', height: 6, borderRadius: 3, background: T.track }}>
+            <span style={{ position: 'absolute', left: 0, top: 0, height: 6, width: `${fillPct}%`, borderRadius: 3, background: `linear-gradient(90deg, ${meta.color}33, ${meta.color}CC)`, display: 'block', transition: 'width .6s linear' }} />
+            <span style={{ position: 'absolute', left: `${fillPct}%`, top: -16, transform: fillPct > 0 ? 'translateX(-100%)' : 'none', fontSize: 13, fontWeight: 600, letterSpacing: '-.02em', color: meta.color, transition: 'left .6s linear', whiteSpace: 'nowrap' }}>{lane.costUsd === null ? 'cost n/a' : fmtCost(lane.costUsd)}</span>
+            <span style={{ position: 'absolute', right: 0, top: -3, width: 1, height: 12, background: 'rgba(255,255,255,.35)', display: 'block' }} />
+          </div>
+          <span style={{ fontSize: 12, fontWeight: 500, color: T.muted, textAlign: 'right' }}>{fmtCost(budget)} budget</span>
+        </div>
       </div>
-      <div className="mt-3"><SpendBar cost={lane.costUsd} budget={budget} color={meta.color} /></div>
-      <div className="mt-2 truncate text-sm text-zinc-400 num">{lane.lastAction || (running ? 'starting…' : '')}</div>
-      {lane.score && <div className="mt-1 text-sm">score <span className="num">{lane.score.total}/{lane.score.maxPossible}</span>{lane.score.tamperFlags.length > 0 && <span className="ml-2 text-red-400">🚩 tamper</span>}</div>}
-      {open && <LogDrawer text={tail} />}
+      {open && (
+        <div style={{ background: 'rgba(255,255,255,.015)', borderTop: `1px solid ${T.divider}`, padding: '14px 24px 16px', display: 'flex', flexDirection: 'column', gap: 5, fontFamily: T.mono, fontSize: 12, lineHeight: 1.5, color: T.dim }}>
+          {(tail || 'log available when the agent exits').split('\n').map((line, i) => <span key={i} style={{ whiteSpace: 'pre', color: logColor(line) }}>{line}</span>)}
+        </div>
+      )}
     </div>
   );
 }
@@ -4317,16 +4472,21 @@ export function Lane({ lane, budget, record, live }: { lane: AgentLane; budget: 
 import type { RaceState } from '@contract';
 import type { Bootstrap } from '../data';
 import { Lane } from '../components/Lane';
+import { T, col, surface } from '../theme';
 
 export function Race({ state, bootstrap }: { state: RaceState; bootstrap: Bootstrap }) {
   const running = state.agents.filter((a) => a.status === 'running').length;
   return (
-    <div className="space-y-4">
-      <div className="flex items-baseline justify-between text-sm text-zinc-400">
-        <span>{state.finished ? 'Race finished' : `${running} of ${state.agents.length} running`}</span>
-        <span className="num">budget ${state.caps?.budgetUsd.toFixed(2)} · timeout {state.caps ? Math.round(state.caps.timeoutMs / 60000) : '?'}m</span>
+    <div style={{ ...col, gap: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 16, borderBottom: `1px solid ${T.hairline}` }}>
+        <span style={{ fontSize: 15, fontWeight: 500 }}>{state.issue?.title ?? 'No run loaded'}</span>
+        <span style={{ fontSize: 13, color: T.muted }}>{state.repo ? `${state.repo.owner}/${state.repo.name} #${state.issue?.number}` : ''}</span>
+        <span style={{ fontSize: 13, color: T.muted }}>{state.runId ?? ''}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, color: T.muted }}>{state.finished ? 'Finished' : `${running} of ${state.agents.length} running`}</span>
       </div>
-      {state.agents.map((lane) => <Lane key={lane.driver} lane={lane} budget={state.caps?.budgetUsd ?? 1} record={state.record} live={bootstrap.mode === 'live'} />)}
+      <div style={{ ...surface, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {state.agents.map((lane, i) => <Lane key={lane.driver} lane={lane} budget={state.caps?.budgetUsd ?? 1} record={state.record} live={bootstrap.mode === 'live'} last={i === state.agents.length - 1} />)}
+      </div>
     </div>
   );
 }
@@ -4334,19 +4494,20 @@ export function Race({ state, bootstrap }: { state: RaceState; bootstrap: Bootst
 
 - [ ] **Step 2: Wire into App.tsx, build, run a watched race**
 
-Replace the Race placeholder with `<Race state={state} bootstrap={bootstrap} />`. Then:
+Replace the Race placeholder in `App.tsx` with `<Race state={state} bootstrap={bootstrap} />` (the `useEffect` switching to the scoreboard on `state.finished` is already there). Then:
 
 ```bash
 bun run typecheck && bun run build:ui
 # in scratch/: bun run /path/to/bakeoff/src/cli/index.ts run 1 --agents claude,codex --watch
+open "design/handoff/design_handoff_bakeoff/standalone/Bakeoff Race.html"
 ```
 
-Expected: browser opens on the Race tab, lanes tick, spend bars grow, status pills flip to "PR open", the tab switches to Scoreboard when `race.finished` arrives (add `useEffect(() => { if (state.finished) setTab('scoreboard'); }, [state.finished])` in App). Record the 30-60s screen video here.
+Expected: the browser opens on the Race tab; lanes tick, the cost fill and label creep right, pills flip to `PR open`, the log drawer opens on click, and the tab switches to Scoreboard when `race.finished` arrives. Side by side with the handoff the only differences are live data and the `Abort` button. Record the 30-60s screen video here.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add -A && git commit -m "feat(ui): live race view with lanes, spend bars, abort"
+git add -A && git commit -m "feat(ui): live race view from the design handoff"
 ```
 
 ---
@@ -4472,62 +4633,83 @@ bun test && bun run typecheck && git add -A && git commit -m "feat: openskill la
 - Modify: `src/cli/export.ts` (static bootstrap also carries `ladder`), `ui/src/data.ts` (`Bootstrap` static variant gains `ladder?: Ladder`), `src/cli/server.ts` (`GET /ladder.json`), `ui/src/App.tsx`
 
 **Interfaces:**
-- Produces: `Ladder` screen: table (agent, rating, races, wins, avg cost, avg time) with a `Sparkline` of `history[].rating` per row. Data: static → `bootstrap.ladder`; live → fetch `/ladder.json` once when `state.finished` flips.
+- Produces: `Ladder` screen mirroring `Bakeoff Ladder.dc.html` (table + empty state) with a `Sparkline` of `history[].rating` per row. Data: static → `bootstrap.ladder`; live → fetch `/ladder.json` once when `state.finished` flips.
 
-- [ ] **Step 0: Visual spec**
-
-Handoff section 3 (`design/handoff/design_handoff_bakeoff/README.md`, `standalone/Bakeoff Ladder.html`): header `Ladder` 15/500, repo muted, `N races` right; table surface with columns `32px 1fr 100px 80px 80px 110px 110px 140px`, gap 16, header 12/500 muted, rows padding 16 with `.06` dividers; rating 20/600 −0.03em right-aligned; sparkline 140×28, 1.5px polyline in the agent color at .85 opacity with a 2.5px end dot; sorted by rating. Empty state: 72px vertical padding, `No races yet.` 14/500 and `Run one with bakeoff run owner/repo#123` 13 muted with the command in a Geist Mono chip. Avg time formats as `6:29`.
-
-- [ ] **Step 1: Sparkline and screen**
+- [ ] **Step 1: Sparkline and screen (markup from `Bakeoff Ladder.dc.html`)**
 
 ```tsx
 // ui/src/components/Sparkline.tsx
 export function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) return <svg width="140" height="28" />;
+  if (values.length < 2) return <svg viewBox="0 0 140 28" width="140" height="28" style={{ display: 'block', justifySelf: 'end' }} />;
   const min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
   const xy = values.map((v, i) => [(i / (values.length - 1)) * 136 + 2, 26 - ((v - min) / span) * 24] as const);
   const last = xy[xy.length - 1]!;
-  return <svg width="140" height="28"><polyline fill="none" stroke={color} strokeOpacity="0.85" strokeWidth="1.5" points={xy.map(([x, y]) => `${x},${y}`).join(' ')} /><circle cx={last[0]} cy={last[1]} r="2.5" fill={color} /></svg>;
+  return (
+    <svg viewBox="0 0 140 28" width="140" height="28" style={{ display: 'block', justifySelf: 'end' }}>
+      <polyline points={xy.map(([x, y]) => `${x},${y}`).join(' ')} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity=".85" />
+      <circle cx={last[0]} cy={last[1]} r="2.5" fill={color} />
+    </svg>
+  );
 }
 ```
 
 ```tsx
 // ui/src/screens/Ladder.tsx
-import type { Ladder as LadderT, LadderEntry } from '@contract';
-import { DRIVER_META, fmtCost, fmtDuration } from '../theme';
+import type { Ladder as LadderT, LadderEntry, RaceState } from '@contract';
+import { Dot } from '../components/Dot';
 import { Sparkline } from '../components/Sparkline';
+import { DRIVER_META, T, col, fmtClock, fmtCost, surface } from '../theme';
 
-export function Ladder({ ladder }: { ladder: LadderT | null }) {
-  if (!ladder) return <div className="text-zinc-500">No ladder yet.</div>;
-  const rows = Object.values(ladder.entries).filter((e): e is LadderEntry => !!e).sort((a, b) => b.rating - a.rating);
+const COLS = '32px 1fr 100px 80px 80px 110px 110px 140px';
+const right = { textAlign: 'right' as const };
+
+export function Ladder({ ladder, state }: { ladder: LadderT | null; state: RaceState }) {
+  const rows = ladder ? Object.values(ladder.entries).filter((e): e is LadderEntry => !!e).sort((a, b) => b.rating - a.rating) : [];
+  const races = rows.reduce((n, e) => Math.max(n, e.history.length), 0);
   return (
-    <table className="w-full text-left text-sm">
-      <thead className="text-xs uppercase tracking-wider text-zinc-500"><tr><th className="py-2">Agent</th><th>Rating</th><th>Races</th><th>Wins</th><th>Avg cost</th><th>Avg time</th><th>Trend</th></tr></thead>
-      <tbody>
-        {rows.map((e) => (
-          <tr key={e.driver} className="border-t border-zinc-800">
-            <td className="py-3 font-semibold" style={{ color: DRIVER_META[e.driver].color }}>{DRIVER_META[e.driver].name}</td>
-            <td className="num text-2xl">{e.rating}</td><td className="num">{e.races}</td><td className="num">{e.wins}</td>
-            <td className="num">{fmtCost(e.avgCostUsd)}</td><td className="num">{fmtDuration(e.avgDurationMs)}</td>
-            <td><Sparkline values={e.history.map((h) => h.rating)} color={DRIVER_META[e.driver].color} /></td>
-          </tr>
+    <div style={{ ...col, gap: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, paddingBottom: 16, borderBottom: `1px solid ${T.hairline}` }}>
+        <span style={{ fontSize: 15, fontWeight: 500 }}>Ladder</span>
+        <span style={{ fontSize: 13, color: T.muted }}>{state.repo ? `${state.repo.owner}/${state.repo.name}` : ''}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, color: T.muted }}>{races} race{races === 1 ? '' : 's'}</span>
+      </div>
+      <div style={{ ...surface, padding: '0 24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: 16, alignItems: 'center', padding: '14px 0 12px', borderBottom: `1px solid ${T.divider}`, fontSize: 12, fontWeight: 500, color: T.muted }}>
+          <span>#</span><span>Agent</span><span style={right}>Rating</span><span style={right}>Races</span><span style={right}>Wins</span><span style={right}>Avg cost</span><span style={right}>Avg time</span><span style={right}>Rating trend</span>
+        </div>
+        {rows.length === 0 ? (
+          <div style={{ padding: '72px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>No races yet.</span>
+            <span style={{ fontSize: 13, color: T.muted }}>Run one with <span style={{ fontFamily: T.mono, fontSize: 12, color: 'rgba(255,255,255,.75)', background: 'rgba(255,255,255,.05)', border: `1px solid ${T.hairline}`, padding: '2px 7px', borderRadius: 6 }}>bakeoff run owner/repo#123</span></span>
+          </div>
+        ) : rows.map((e, i) => (
+          <div key={e.driver} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 16, alignItems: 'center', padding: '16px 0', borderBottom: i === rows.length - 1 ? 'none' : `1px solid ${T.divider}` }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: T.muted }}>{i + 1}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Dot color={DRIVER_META[e.driver].color} px={8} /><span style={{ fontSize: 14, fontWeight: 500 }}>{DRIVER_META[e.driver].name}</span></div>
+            <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-.03em', ...right }}>{e.rating}</span>
+            <span style={{ fontSize: 14, ...right }}>{e.races}</span>
+            <span style={{ fontSize: 14, ...right }}>{e.wins}</span>
+            <span style={{ fontSize: 14, ...right }}>{fmtCost(e.avgCostUsd)}</span>
+            <span style={{ fontSize: 14, ...right }}>{fmtClock(e.avgDurationMs)}</span>
+            <Sparkline values={e.history.map((h) => h.rating)} color={DRIVER_META[e.driver].color} />
+          </div>
         ))}
-      </tbody>
-    </table>
+      </div>
+    </div>
   );
 }
 ```
 
 - [ ] **Step 2: Plumb the data**
 
-`export.ts`: `Bootstrap` static variant becomes `{ mode: 'static'; events: RaceEvent[]; ladder?: Ladder }` and `exportRun` passes `ladder: readLadder(repoRoot)`. `server.ts`: add `GET /ladder.json` → `Response.json(readLadder(o.repoRoot))`. `data.ts`: mirror the type; add `useLadder(bootstrap, finished): Ladder | null` that returns `bootstrap.ladder ?? null` for static and fetches `/ladder.json` in an effect when `finished` is true for live. `App.tsx`: `<Ladder ladder={useLadder(bootstrap, state.finished)} />`.
+`export.ts`: `Bootstrap` static variant becomes `{ mode: 'static'; events: RaceEvent[]; ladder?: Ladder }` and `exportRun` passes `ladder: readLadder(repoRoot)`. `server.ts`: add `GET /ladder.json` → `Response.json(readLadder(o.repoRoot))`. `data.ts`: mirror the type; add `useLadder(bootstrap, finished): Ladder | null` that returns `bootstrap.ladder ?? null` for static and fetches `/ladder.json` in an effect when `finished` is true for live. `App.tsx`: `<Ladder ladder={useLadder(bootstrap, state.finished)} state={state} />`.
 
 - [ ] **Step 3: Typecheck, build, verify, commit**
 
 ```bash
 bun test && bun run typecheck && bun run build:ui
-# in scratch/: bun run /path/to/bakeoff/src/cli/index.ts export <id> && open .bakeoff/runs/<id>.html  # Ladder tab shows a table
-git add -A && git commit -m "feat(ui): ladder screen with sparklines"
+# in scratch/: bun run /path/to/bakeoff/src/cli/index.ts export <id> && open .bakeoff/runs/<id>.html  # Ladder tab matches standalone/Bakeoff Ladder.html
+git add -A && git commit -m "feat(ui): ladder screen from the design handoff"
 ```
 
 ---
@@ -4870,5 +5052,7 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): blin
 - **Section 10 CLI/UI/outputs**: `run/doctor/init` Task 11/15, `share` Task 27, `ladder` Task 30, `merge` Task 34, `export` Task 26, server Task 28, Race screen Task 29, Scoreboard Task 25, Ladder screen Task 31, card Task 27, terminal live view Task 15 and final table Task 23 (both per `design/TERMINAL.md`), copy-markdown Task 25.
 - **Section 11 testing**: fixture repos helper Task 10; every task carries its tests.
 - **Section 12 cut order**: judge (36), merge (34), replay (not planned; cut pre-emptively), ladder screen (31), race view (28-29), OpenCode (24), hidden tests (18/35), CI (33) are all separable tasks at the tail of their day.
+
+UI styling: Tasks 25, 27, 29 and 31 carry inline style objects transcribed from the handoff markup; no Tailwind, no separate stylesheet, no emoji.
 
 Type consistency checked: `ScoreCtx` fields (`worktree, repoRoot, baseSha, config, agent, hiddenDir, repo, baselineGreen, ci`) are introduced in Tasks 14, 22, 33 in that order; `Bootstrap` is defined in `src/cli/export.ts` and mirrored in `ui/src/data.ts` (Task 25/26/31); `AbortRegistry` from Task 14 is what Task 28 consumes; `fmtCost`/`fmtDuration` exist separately in `src/cli/render/table.ts` and `ui/src/theme.ts` because the UI must not import from `src/cli`.

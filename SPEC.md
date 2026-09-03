@@ -10,7 +10,7 @@ Status: approved design, 2026-09-02. Source documents: `pr-arena-v1-spec.md` (pr
 - Drivers in order: Claude Code, Codex, OpenCode. Gemini only if time allows.
 - Deterministic scoring (section 4). Tamper penalty included. LLM judge off by default.
 - Ratings: OpenSkill, marketed as "Elo-style".
-- UI: local web UI served by the CLI (Vite + React + Tailwind, vite-plugin-singlefile). Static HTML export and a satori PNG card. No native app.
+- UI: local web UI served by the CLI (Vite + React, vite-plugin-singlefile; styling transcribed from the design handoff, Tailwind dropped 2026-09-02 because no component uses it). Static HTML export and a satori PNG card. No native app.
 - Contract first: `src/contract/` (types, zod schemas, fixtures) lands before any UI or scorer code so they can proceed in parallel.
 - Single package, not a monorepo.
 - Live transport: SSE from CLI to browser, POST for the one browser-to-CLI command (abort).
@@ -301,7 +301,7 @@ Commands (v1): `run`, `doctor`, `init`, `share <id>`, `ladder`. Should-ship: `re
 
 Static export: `dist/ui.html` with `<script type="application/json" id="bakeoff-data">` containing `{mode:'static', events}` injected before `</head>`. Written to `.bakeoff/runs/<id>.html`.
 
-Screens: Race (live lanes: driver, timer, spend bar cost/budget, tokens, files touched, last action, status pill, log drawer), Scoreboard (podium, stacked component bars with red penalty segments, grey n/a segments, receipts row, Share and Copy-markdown buttons), Ladder (table + rating sparkline). Sports-broadcast look: dark, one accent per driver, tabular numerals. Not a card grid.
+Screens: Race (live lanes: driver, timer, spend bar cost/budget, tokens, files touched, last action, status pill, log drawer), Scoreboard (winner surface + others column, breakdown bars with a penalty zone and dashed n/a segments, receipts row, Share card and Copy results buttons), Ladder (table + rating sparkline, empty state). No emoji anywhere; text and color only.
 
 Share card: satori + `@resvg/resvg-js`, 1200×630, podium, totals, cost, issue title, tamper flags if any. `bakeoff share <id>` writes `.bakeoff/runs/<id>.png`.
 

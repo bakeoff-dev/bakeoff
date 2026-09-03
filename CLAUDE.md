@@ -11,7 +11,7 @@ Read `SPEC.md` before changing behavior. `PLAN.md` is the task list; tasks are c
 - Config: `bakeoff.yml` parsed with `yaml` + `zod`. Unknown keys fail.
 - Git/GitHub: shell out to `git` and `gh` through `src/core/exec.ts`. Never call the GitHub REST API directly.
 - Ratings: `openskill`. Displayed as "Elo-style".
-- UI: `ui/` is Vite + React + Tailwind, built to one file with `vite-plugin-singlefile` into `dist/ui.html`. It imports `src/contract` via the `@contract` alias and nothing else from `src/`.
+- UI: `ui/` is Vite + React, built to one file with `vite-plugin-singlefile` into `dist/ui.html`. Styling is inline style objects transcribed from the design handoff plus a few global rules in `ui/index.html`; no Tailwind, no CSS modules. It imports `src/contract` via the `@contract` alias and nothing else from `src/`.
 - Share card: `satori` + `@resvg/resvg-js`.
 - Tests: `vitest`. `test/` mirrors `src/`. Fixture repos are built in temp dirs by `test/helpers/repo.ts`.
 
@@ -63,6 +63,7 @@ test/           vitest
 - Agent identity colors: Claude Code `#F59E6B`, Codex `#5EC8CE`, OpenCode `#E58BC7`, Gemini CLI `#9BCB6E`. They live once in `ui/src/theme.ts` (UI) and are mirrored in each driver's `color` and in `src/render/card.tsx`.
 - Deviations from the handoff are listed in SPEC.md section 10 under Visual design. Follow those, not the handoff, where they conflict.
 - `design/handoff/**/fixture.json` is a design fixture. Code and tests use `src/contract/fixtures/run.json`.
+- No emoji anywhere in the UI, the card, or the terminal. Text and color only.
 - Terminal output follows `design/TERMINAL.md`: agent colors, dim labels, tabular numbers, no emoji, no box drawing, honors `NO_COLOR` and non-TTY. Color helpers live in `src/cli/render/style.ts`.
 
 ## Naming
