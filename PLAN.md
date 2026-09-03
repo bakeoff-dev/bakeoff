@@ -4401,7 +4401,7 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(cli): SSE ser
 - Consumes: `RaceState.agents: AgentLane[]`, `state.caps.budgetUsd`, `Pill`, `Dot`, `theme.ts`.
 - Produces: `Race` screen mirroring `design/handoff/design_handoff_bakeoff/Bakeoff Race.dc.html`: header with `N of M running`, one surface with stacked lanes; each lane has row 1 `220px 1fr auto` (dot + name + pill | last action | elapsed / tokens / files), row 2 `1fr 64px` (cost track with gradient fill, cost label above the fill's end, budget marker | `$3.00 budget`), a click-toggled log drawer in Geist Mono, and in live mode an `Abort` ghost button for running agents that POSTs `/abort/<driver>`.
 
-- [ ] **Step 1: useNow, Lane, Race**
+- [x] **Step 1: useNow, Lane, Race**
 
 ```ts
 // ui/src/useNow.ts
@@ -4492,7 +4492,7 @@ export function Race({ state, bootstrap }: { state: RaceState; bootstrap: Bootst
 }
 ```
 
-- [ ] **Step 2: Wire into App.tsx, build, run a watched race**
+- [x] **Step 2: Wire into App.tsx, build, run a watched race**
 
 Replace the Race placeholder in `App.tsx` with `<Race state={state} bootstrap={bootstrap} />` (the `useEffect` switching to the scoreboard on `state.finished` is already there). Then:
 
@@ -4504,7 +4504,7 @@ open "design/handoff/design_handoff_bakeoff/standalone/Bakeoff Race.html"
 
 Expected: the browser opens on the Race tab; lanes tick, the cost fill and label creep right, pills flip to `PR open`, the log drawer opens on click, and the tab switches to Scoreboard when `race.finished` arrives. Side by side with the handoff the only differences are live data and the `Abort` button. Record the 30-60s screen video here.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add -A && git commit -m "feat(ui): live race view from the design handoff"
