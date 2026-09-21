@@ -4635,7 +4635,7 @@ bun test && bun run typecheck && git add -A && git commit -m "feat: openskill la
 **Interfaces:**
 - Produces: `Ladder` screen mirroring `Bakeoff Ladder.dc.html` (table + empty state) with a `Sparkline` of `history[].rating` per row. Data: static → `bootstrap.ladder`; live → fetch `/ladder.json` once when `state.finished` flips.
 
-- [ ] **Step 1: Sparkline and screen (markup from `Bakeoff Ladder.dc.html`)**
+- [x] **Step 1: Sparkline and screen (markup from `Bakeoff Ladder.dc.html`)**
 
 ```tsx
 // ui/src/components/Sparkline.tsx
@@ -4700,11 +4700,11 @@ export function Ladder({ ladder, state }: { ladder: LadderT | null; state: RaceS
 }
 ```
 
-- [ ] **Step 2: Plumb the data**
+- [~] **Step 2: Plumb the data** (`data.ts` `useLadder` + `App.tsx` done; `export.ts` and `server.ts` do not exist yet -- finish in Tasks 26 and 28)
 
 `export.ts`: `Bootstrap` static variant becomes `{ mode: 'static'; events: RaceEvent[]; ladder?: Ladder }` and `exportRun` passes `ladder: readLadder(repoRoot)`. `server.ts`: add `GET /ladder.json` → `Response.json(readLadder(o.repoRoot))`. `data.ts`: mirror the type; add `useLadder(bootstrap, finished): Ladder | null` that returns `bootstrap.ladder ?? null` for static and fetches `/ladder.json` in an effect when `finished` is true for live. `App.tsx`: `<Ladder ladder={useLadder(bootstrap, state.finished)} state={state} />`.
 
-- [ ] **Step 3: Typecheck, build, verify, commit**
+- [x] **Step 3: Typecheck, build, verify, commit** (verified against `standalone/Bakeoff Ladder.html` with a fixture harness; `bakeoff export` lands in Task 26)
 
 ```bash
 bun test && bun run typecheck && bun run build:ui

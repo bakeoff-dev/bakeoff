@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { loadBootstrap, useRaceState } from './data';
+import { loadBootstrap, useLadder, useRaceState } from './data';
+import { Ladder } from './screens/Ladder';
 import { Race } from './screens/Race';
 import { Scoreboard } from './screens/Scoreboard';
 import { T, ghostButton, page } from './theme';
@@ -10,6 +11,7 @@ const TABS: [Tab, string][] = [['race', 'Race'], ['scoreboard', 'Scoreboard'], [
 
 export function App() {
   const state = useRaceState(bootstrap);
+  const ladder = useLadder(bootstrap, state.finished);
   const [tab, setTab] = useState<Tab>(state.finished ? 'scoreboard' : 'race');
   useEffect(() => {
     if (state.finished) setTab('scoreboard');
@@ -33,7 +35,7 @@ export function App() {
       </nav>
       {tab === 'scoreboard' && <Scoreboard state={state} />}
       {tab === 'race' && <Race state={state} bootstrap={bootstrap} />}
-      {tab === 'ladder' && <div style={{ padding: 36, color: T.muted }}>Ladder arrives in Task 31.</div>}
+      {tab === 'ladder' && <Ladder ladder={ladder} state={state} />}
     </div>
   );
 }

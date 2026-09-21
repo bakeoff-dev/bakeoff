@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  RaceEventSchema, applyEvent, initialState, parseEventLines, reduceEvents,
+  LadderSchema, RaceEventSchema, applyEvent, initialState, parseEventLines, reduceEvents,
   type Ladder, type RaceEvent, type RaceState,
 } from '@contract';
+
+/** Served by the watch server alongside the SSE stream (Task 28). */
+const LADDER_URL = '/ladder.json';
 
 export type Bootstrap =
   | { mode: 'static'; events: RaceEvent[]; ladder?: Ladder }
@@ -41,4 +44,25 @@ export function useRaceState(b: Bootstrap): RaceState {
     return () => es.close();
   }, [b]);
   return state;
+}
+
+/**
+ * Static exports carry the ladder inline. A watched run only has one worth showing once the
+ * race is over and the ratings have been written, so the fetch waits for `finished`.
+ */
+export function useLadder(b: Bootstrap, finished: boolean): Ladder | null {
+  const [ladder, setLadder] = useState<Ladder | null>(b.mode === 'static' ? b.ladder ?? null : null);
+  useEffect(() => {
+    if (b.mode !== 'live' || !finished) return;
+    let live = true;
+    void fetch(LADDER_URL)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: unknown) => {
+        const parsed = j === null ? null : LadderSchema.safeParse(j);
+        if (live && parsed?.success) setLadder(parsed.data);
+      })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [b, finished]);
+  return ladder;
 }
