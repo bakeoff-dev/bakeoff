@@ -1783,7 +1783,7 @@ git add -A && git commit -m "feat: driver interface, registry, doctor command"
 - Consumes: `runProcess`, `BudgetMeter`, driver types.
 - Produces: `claudeDriver: Driver`, `claudeArgs(input, opts: { bare: boolean }): string[]`, `parseClaudeLine(line: string): { events: AgentEvent[]; result: ClaudeResult | null }` with `ClaudeResult = { costUsd: number | null; tokens: TokenUsage | null; isError: boolean; durationMs: number | null }`.
 
-- [ ] **Step 1: Record a real fixture**
+- [x] **Step 1: Record a real fixture**
 
 ```bash
 mkdir -p test/fixtures/drivers/claude && cd "$(mktemp -d)" && git init -q && \
@@ -1795,7 +1795,7 @@ head -c 600 test/fixtures/drivers/claude/stream.jsonl; echo; tail -c 800 test/fi
 
 Confirm the first line is `{"type":"system","subtype":"init",...}`, at least one line is `{"type":"assistant",...}` containing a `tool_use` block with `"name":"Write"`, and the last line is `{"type":"result",...}` with `total_cost_usd`, `usage`, `duration_ms`. If field names differ from the parser below, change the parser to match the fixture, not the other way around.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 ```ts
 // test/core/drivers/claude.test.ts
@@ -1832,12 +1832,12 @@ describe('claudeArgs', () => {
 });
 ```
 
-- [ ] **Step 3: Run to verify failure**
+- [x] **Step 3: Run to verify failure**
 
 Run: `bun test test/core/drivers/claude.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 4: Write claude.ts**
+- [x] **Step 4: Write claude.ts**
 
 ```ts
 // src/core/drivers/claude.ts
@@ -1951,7 +1951,7 @@ import { claudeDriver } from './claude';
 registerDriver(claudeDriver);
 ```
 
-- [ ] **Step 5: Run tests and doctor, commit**
+- [x] **Step 5: Run tests and doctor, commit**
 
 Run: `bun test && bun run typecheck && bun run dev -- doctor --agents claude`
 Expected: tests pass; doctor shows git, gh auth, Claude Code v2.1.259 all green. The doctor probe spends about one cent per run.
@@ -1970,7 +1970,7 @@ git add -A && git commit -m "feat(drivers): Claude Code driver with stream-json 
 **Interfaces:**
 - Produces: `commitLeftovers(worktree, message, run?): Promise<boolean>`, `pushBranch(worktree, branch, run?): Promise<void>`, `ensureLabels(repo, labels: { name: string; color: string }[], run?)`, `createPr(o: { worktree; repo; branch; base; title; body; labels: string[] }, run?): Promise<{ url: string; number: number }>`, `prNumberFromUrl(url): number`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/publish.test.ts
@@ -2010,12 +2010,12 @@ describe('publish', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/publish.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write publish.ts**
+- [x] **Step 3: Write publish.ts**
 
 ```ts
 // src/core/publish.ts
@@ -2051,7 +2051,7 @@ export async function createPr(o: { worktree: string; repo: Repo; branch: string
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
@@ -2076,7 +2076,7 @@ git add -A && git commit -m "feat(core): commit leftovers, push, labels, gh pr c
   - `ScoreAgentFn = (ctx: { worktree; repoRoot; baseSha; config; agent: AgentResult; hiddenDir }) => Promise<Pick<AgentResult,'score'|'filesTouched'|'linesAdded'|'linesRemoved'>>` and `FinalizeFn = (agents: AgentResult[], configured: Configured) => AgentResult[]` (assigns diff component, ranks). Both are wired in Day 4; `null` means "skip".
   - Also `createAbortRegistry()`: `{ signalFor(driver): AbortSignal; abort(driver): void }` used by the server later.
 
-- [ ] **Step 1: Write the failing test with a fake driver**
+- [x] **Step 1: Write the failing test with a fake driver**
 
 ```ts
 // test/core/race.test.ts
@@ -2144,12 +2144,12 @@ describe('runRace', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test test/core/race.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write race.ts**
+- [x] **Step 3: Write race.ts**
 
 ```ts
 // src/core/race.ts
@@ -2284,7 +2284,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
 }
 ```
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
@@ -2304,7 +2304,7 @@ git add -A && git commit -m "feat(core): race orchestrator with events, publish,
 **Interfaces:**
 - Produces: `style.ts`: `DRIVER_NAME`, `DRIVER_HEX`, `STATUS_HEX`, `colorEnabled(): boolean`, `paint(hex, s)`, `dim(s)`, `fmtClock(ms)` (`6:52`), `fmtClockPadded(ms)` (`02:14`), `fmtTok(tokens)` (`181k tok`), `fmtCost(n)` (`$1.20` / `n/a`), `spendBar(cost, budget, width = 20)`. `progress.ts`: `progressRenderer(out?): { onEvent(e: RaceEvent): void; stop(): void }`. `runCommand(issueArg: string | undefined, opts: { agents?: string; budget?: string; timeout?: string; watch?: boolean; keepWorktrees?: boolean })`, `initCommand()`.
 
-- [ ] **Step 1: Write style.ts with a failing test, then progress.ts**
+- [x] **Step 1: Write style.ts with a failing test, then progress.ts**
 
 ```ts
 // test/cli/style.test.ts
@@ -2423,7 +2423,7 @@ export function progressRenderer(out: NodeJS.WriteStream = process.stdout) {
 
 `colorEnabled` is imported so `paint` inside `frame()` respects `NO_COLOR` on a TTY (the bar and dots print plain). Run: `bun test test/cli/style.test.ts && bun run typecheck` → pass.
 
-- [ ] **Step 2: Write run.ts and init.ts**
+- [x] **Step 2: Write run.ts and init.ts**
 
 ```ts
 // src/cli/commands/run.ts
@@ -2513,12 +2513,12 @@ program.command('run [issue]').description('Race agents on an issue (owner/repo#
 program.command('init').description(`Write ${NAMES.configFile} and gitignore entries`).action(() => initCommand());
 ```
 
-- [ ] **Step 3: Typecheck and unit tests**
+- [x] **Step 3: Typecheck and unit tests**
 
 Run: `bun test && bun run typecheck`
 Expected: pass.
 
-- [ ] **Step 4a: Check that headless Claude does not block on a workspace-trust prompt in a fresh $TMPDIR worktree**
+- [x] **Step 4a: Check that headless Claude does not block on a workspace-trust prompt in a fresh $TMPDIR worktree**
 
 Interactive Claude Code asks "Do you trust the files in this folder?" the first time it sees a directory. Bakeoff's worktrees are always fresh directories under `$TMPDIR`, so prove `-p` mode never waits on that prompt:
 
@@ -2529,7 +2529,7 @@ timeout 90 claude -p "print the word ok and stop" --max-budget-usd 0.05 --output
 
 Expected: a JSON envelope within a few seconds and exit 0. If instead it hangs until `timeout` kills it (exit 124), or the stderr mentions trust, apply this fix in `claudeDriver.launch` and re-run the check: pre-seed trust for the worktree path before spawning by merging `{ "projects": { "<worktree>": { "hasTrustDialogAccepted": true } } }` into `~/.claude.json` (read, merge, write; create the file if missing), and pass `--add-dir <worktree>` (already in `claudeArgs`). Record which of the two was needed in `CLAUDE.md` under Driver notes.
 
-- [ ] **Step 4: Manual end-to-end on the scratch repo (this is the day-2 milestone)**
+- [x] **Step 4: Manual end-to-end on the scratch repo (this is the day-2 milestone)**
 
 ```bash
 gh repo create bakeoff-dev/scratch --public --clone --description "Bakeoff test bed" && cd scratch
@@ -2552,7 +2552,7 @@ bun run /path/to/bakeoff/src/cli/index.ts run 1 --agents claude --budget 1 --tim
 
 Expected: the live block redraws in place with a colored `●`, the spend bar creeping up, and the last action dimmed underneath; after exit the block clears and a plain line prints `claude  ok  $0.xx  NNs  https://github.com/bakeoff-dev/scratch/pull/1`. `gh pr view 1` shows labels `bakeoff` and `bakeoff-run:<id>`. `.bakeoff/runs/<id>.json` has `status: "ok"`, a `costUsd`, tokens, and `prUrl`. Take the screenshot.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat(cli): run and init commands; first real PR"
