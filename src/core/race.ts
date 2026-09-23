@@ -34,7 +34,7 @@ export type ScoreAgentFn = (
   ctx: ScoreCtx,
   baselineGreen: boolean | null,
   ci: ScoreComponent | null | Promise<ScoreComponent | null>,
-) => Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved' | 'testFilesTouched' | 'testLinesChanged'>>;
+) => Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved' | 'testFilesTouched' | 'testLinesChanged' | 'docFilesTouched' | 'docLinesChanged'>>;
 export type FinalizeFn = (agents: AgentResult[], configured: Configured) => AgentResult[];
 
 export interface AbortRegistry { signalFor(driver: DriverId): AbortSignal; abort(driver: DriverId): void }
@@ -163,7 +163,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
       branch: branchName(issue.info.number, d, runId),
       exitCode: null, durationMs: 0, costUsd: null, tokens: null,
       filesTouched: [], linesAdded: 0, linesRemoved: 0,
-      testFilesTouched: [], testLinesChanged: 0,
+      testFilesTouched: [], testLinesChanged: 0, docFilesTouched: [], docLinesChanged: 0,
       prUrl: null, prNumber: null, score: null, rank: null, logTail: '',
     })),
     winner: null,

@@ -12,7 +12,8 @@ import {
  * These are frozen copies: never widen them to accept newer fields.
  */
 const AgentResultV1Schema = AgentResultSchema.omit({
-  model: true, requestedModel: true, testFilesTouched: true, testLinesChanged: true,
+  model: true, requestedModel: true,
+  testFilesTouched: true, testLinesChanged: true, docFilesTouched: true, docLinesChanged: true,
 });
 const RunRecordV1Schema = RunRecordSchema.omit({
   schemaVersion: true, agents: true, baseline: true, noAcceptanceTest: true,
@@ -62,6 +63,8 @@ function fillAdditive(raw: unknown): unknown {
         requestedModel: null,
         testFilesTouched: [],
         testLinesChanged: 0,
+        docFilesTouched: [],
+        docLinesChanged: 0,
         ...agent,
       };
     }),
@@ -81,7 +84,8 @@ export function readRunJson(raw: unknown): RunRecord {
       baseline: { ...v1.baseline, setupError: null },
       noAcceptanceTest: false,
       agents: v1.agents.map((a) => ({
-        ...a, model: null, requestedModel: null, testFilesTouched: [], testLinesChanged: 0,
+        ...a, model: null, requestedModel: null,
+        testFilesTouched: [], testLinesChanged: 0, docFilesTouched: [], docLinesChanged: 0,
       })),
     };
   }

@@ -52,14 +52,19 @@
       },
       "filesTouched": [
         "src/paginate.ts",
-        "test/paginate.test.ts"
+        "test/paginate.test.ts",
+        "README.md"
       ],
-      "linesAdded": 18,
+      "linesAdded": 24,
       "linesRemoved": 4,
       "testFilesTouched": [
         "paginate.test.ts"
       ],
       "testLinesChanged": 8,
+      "docFilesTouched": [
+        "README.md"
+      ],
+      "docLinesChanged": 6,
       "prUrl": "https://github.com/bakeoff-dev/scratch/pull/12",
       "prNumber": 12,
       "score": {
@@ -141,6 +146,8 @@
         "paginate.test.ts"
       ],
       "testLinesChanged": 5,
+      "docFilesTouched": [],
+      "docLinesChanged": 0,
       "prUrl": "https://github.com/bakeoff-dev/scratch/pull/13",
       "prNumber": 13,
       "score": {
@@ -222,6 +229,8 @@
       "linesRemoved": 0,
       "testFilesTouched": [],
       "testLinesChanged": 0,
+      "docFilesTouched": [],
+      "docLinesChanged": 0,
       "prUrl": null,
       "prNumber": null,
       "score": null,

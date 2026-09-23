@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { diffDiscipline } from '../../../src/core/scorer/diff';
-import { isTestFile } from '../../../src/core/scorer/tamper';
+import { isDocFile, isTestFile } from '../../../src/core/scorer/tamper';
 
 describe('isTestFile', () => {
   it('knows a test by name, whatever the language', () => {
@@ -74,5 +74,64 @@ describe('diff discipline on race 20260923-fptp', () => {
     // its product diff is empty, which is what "no changes" means for this component
     const only = diffDiscipline([{ driver: 'claude' as const, files: [], lines: 0 }]);
     expect(only.get('claude')).toEqual({ id: 'diff', max: 10, awarded: 0, detail: 'no changes' });
+  });
+});
+
+describe('isDocFile', () => {
+  it('knows prose by extension, anywhere in the tree', () => {
+    for (const f of ['README.md', 'docs/guide.mdx', 'CHANGELOG.MD', 'doc/index.rst', 'a/b/notes.md']) {
+      expect(isDocFile(f)).toBe(true);
+    }
+  });
+
+  it('knows anything under a docs directory, whatever the extension', () => {
+    for (const f of ['docs/ko/toArray.json', 'docs', 'packages/x/docs/api.ts', 'docs/zh_hans/index.html']) {
+      expect(isDocFile(f)).toBe(true);
+    }
+  });
+
+  it('does not mistake code for prose', () => {
+    for (const f of ['src/toArray.ts', 'markdown.ts', 'src/docsite.ts', 'mdx.tsx']) {
+      expect(isDocFile(f)).toBe(false);
+    }
+  });
+});
+
+describe('diff discipline on the es-toolkit#2068 pilot', () => {
+  /*
+   * The shape of the pilot that prompted this: a few lines of code plus the docs in
+   * four locales, which is what es-toolkit's own upstream fix did (PR #1893). The
+   * real race scored that agent 2.2/10; these line counts are illustrative, so the
+   * assertion is the relationship rather than a number I did not measure.
+   */
+  const docs = ['docs/en/toArray.md', 'docs/ko/toArray.md', 'docs/ja/toArray.md', 'docs/zh_hans/toArray.md'];
+  const thorough = { driver: 'claude' as const, files: ['src/toArray.ts', ...docs], lines: 96 };
+  const minimal = { driver: 'codex' as const, files: ['src/toArray.ts'], lines: 8 };
+
+  it('used to punish the agent that updated the docs', () => {
+    const before = diffDiscipline([thorough, minimal]);
+    const thoroughScore = before.get('claude')!.awarded!;
+    const minimalScore = before.get('codex')!.awarded!;
+    expect(minimalScore).toBeGreaterThan(thoroughScore);
+    // and by a wide margin: the docs were most of the diff
+    expect(minimalScore - thoroughScore).toBeGreaterThan(4);
+  });
+
+  it('no longer does, once doc lines and doc files are out of the count', () => {
+    // the product change is the same 8 lines in the same one file
+    const after = diffDiscipline([
+      { driver: 'claude' as const, files: ['src/toArray.ts'], lines: 8 },
+      minimal,
+    ]);
+    expect(after.get('claude')!.awarded!).toBe(after.get('codex')!.awarded!);
+    expect(after.get('claude')!.awarded!).toBeGreaterThan(9);
+  });
+
+  it('still counts a sprawling product change, docs or no docs', () => {
+    const sprawl = diffDiscipline([
+      { driver: 'claude' as const, files: ['src/a.ts'], lines: 10 },
+      { driver: 'codex' as const, files: ['src/a.ts', 'src/b.ts', 'src/c.ts'], lines: 400 },
+    ]);
+    expect(sprawl.get('claude')!.awarded!).toBeGreaterThan(sprawl.get('codex')!.awarded!);
   });
 });

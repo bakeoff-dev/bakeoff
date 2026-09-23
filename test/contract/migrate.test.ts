@@ -42,7 +42,8 @@ describe('reading a version-1 run record', () => {
     expect(rec.winner).toBe(v1Run.winner);
     expect(rec.packetHash).toBe(v1Run.packetHash);
     const stripped = rec.agents.map(
-      ({ model, requestedModel, testFilesTouched, testLinesChanged, ...rest }) => rest,
+      ({ model, requestedModel, testFilesTouched, testLinesChanged, docFilesTouched, docLinesChanged, ...rest }) =>
+        rest,
     );
     expect(stripped).toEqual(v1Run.agents);
   });
@@ -58,6 +59,8 @@ describe('reading a version-1 run record', () => {
     for (const a of v1.agents) {
       expect(a.testFilesTouched).toEqual([]);
       expect(a.testLinesChanged).toBe(0);
+      expect(a.docFilesTouched).toEqual([]);
+      expect(a.docLinesChanged).toBe(0);
     }
   });
 

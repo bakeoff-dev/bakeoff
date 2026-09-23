@@ -1,6 +1,6 @@
 import type { DriverId, ScoreComponent } from '@contract';
 import { exec, must, type Exec } from '../exec';
-import { isTestFile } from './tamper';
+import { isDocFile, isTestFile } from './tamper';
 
 export interface DiffStats {
   files: string[];
@@ -9,6 +9,9 @@ export interface DiffStats {
   /** The test share of the same diff, so discipline can judge the product change alone. */
   testFiles: string[];
   testLines: number;
+  /** The documentation share, excluded for the same reason. */
+  docFiles: string[];
+  docLines: number;
 }
 
 /**
@@ -24,9 +27,11 @@ export async function diffStats(
 ): Promise<DiffStats> {
   const files = new Set<string>();
   const testFiles = new Set<string>();
+  const docFiles = new Set<string>();
   let added = 0;
   let removed = 0;
   let testLines = 0;
+  let docLines = 0;
   const numstat = await must('git', ['diff', '--numstat', `${baseSha}..HEAD`], { cwd: worktree }, run);
   for (const line of numstat.split('\n').filter(Boolean)) {
     const [a, r, f] = line.split('\t');
@@ -38,9 +43,17 @@ export async function diffStats(
     if (isTestFile(f, [...testPaths])) {
       testFiles.add(f);
       testLines += lines;
+    } else if (isDocFile(f)) {
+      // `else`: a doc inside a test path is already counted once as a test.
+      docFiles.add(f);
+      docLines += lines;
     }
   }
-  return { files: [...files], added, removed, testFiles: [...testFiles], testLines };
+  return {
+    files: [...files], added, removed,
+    testFiles: [...testFiles], testLines,
+    docFiles: [...docFiles], docLines,
+  };
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -57,9 +70,11 @@ export interface Finisher { driver: DriverId; files: string[]; lines: number }
  * the consensus file set. A finisher that changed nothing scores 0, never a share of the
  * points for restraint.
  *
- * Both halves count the product change only. Race 20260923-fptp is why: an agent that
- * built the feature with thirteen tests (+54) lost discipline to one that added six
- * unrelated lines, so the rule charged it for the very tests that proved its work.
+ * Both halves count the product change only -- neither tests nor documentation. Two
+ * races are why. In 20260923-fptp an agent that built the feature with thirteen tests
+ * (+54) lost to one that added six unrelated lines. In the es-toolkit#2068 pilot an
+ * agent scored 2.2/10 for updating the docs in four languages, which is exactly what
+ * that project's own upstream fixes do.
  */
 export function diffDiscipline(finishers: Finisher[]): Map<DriverId, ScoreComponent> {
   const out = new Map<DriverId, ScoreComponent>();
