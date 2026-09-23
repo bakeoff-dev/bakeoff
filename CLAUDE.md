@@ -6,7 +6,8 @@ Read `SPEC.md` before changing behavior. `PLAN.md` is the task list; tasks are c
 
 ## Stack
 
-- Runtime: Bun >= 1.3. TypeScript strict, ESM only. No Node-only APIs unless Bun lacks them (`node:child_process` for detached spawn is the one exception).
+- Ships for **Node >= 22**: `dist/cli.js` is bundled with `--target=node` and a `#!/usr/bin/env node` shebang. Bun is the build and test toolchain for contributors only; nothing in `src/` may use a `Bun.*` API or a `bun:` import.
+- TypeScript strict, ESM only.
 - CLI: `commander` for commands, `@clack/prompts` for interaction. Entry `src/cli/index.ts`.
 - Config: `bakeoff.yml` parsed with `yaml` + `zod`. Unknown keys fail.
 - Git/GitHub: shell out to `git` and `gh` through `src/core/exec.ts`. Never call the GitHub REST API directly.
@@ -21,7 +22,8 @@ Read `SPEC.md` before changing behavior. `PLAN.md` is the task list; tasks are c
 bun install
 bun test              # vitest run
 bun run typecheck     # tsc --noEmit
-bun run build         # ui + cli -> dist/
+bun run build         # ui + cli -> dist/ (cli.js, ui.html, fonts/)
+npm pack              # what users install; dist + README + LICENSE only
 bun run dev -- run owner/repo#1 --agents claude   # run the CLI from source
 ```
 
@@ -77,7 +79,8 @@ test/           vitest
 ## Commands
 
 - `run` prints the final table from `src/cli/render/table.ts` per `design/TERMINAL.md` and writes the share card. The `Scoreboard` line appears once the HTML export exists.
-- `share [id]` renders a run's card to `.bakeoff/runs/<id>.png`; the id defaults to the latest run. Fonts resolve relative to `src/render/`, which is right from source and needs the dist layout taught to it when packaging.
+- `share [id]` renders a run's card to `.bakeoff/runs/<id>.png`; the id defaults to the latest run.
+- Build assets (fonts, `ui.html`) are found through `src/render/assets.ts`, which looks beside the module first (`dist/` once bundled) and then in `dist/` from a source checkout. `build:cli` runs `scripts/build-cli.ts`, which derives its externals from `dependencies` -- `--packages external` would externalise the `@contract` alias too and the installed CLI would not start -- and fails the build if `@contract` leaks into the bundle or `@resvg/resvg-js` gets inlined.
 - `ladder` prints this repo's ladder. A null model shows as `auto`.
 
 ## Design

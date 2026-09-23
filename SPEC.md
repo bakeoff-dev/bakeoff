@@ -6,7 +6,7 @@ Status: approved design, 2026-09-02. Source documents: `pr-arena-v1-spec.md` (pr
 
 ## 0. Decisions already made (do not relitigate)
 
-- TypeScript on Bun. commander + @clack/prompts. Shell out to `git` and `gh`; no GitHub API client.
+- TypeScript, shipped as an npm package that runs on **Node 22+**. Bun builds and tests it; users never need Bun. commander + @clack/prompts. Shell out to `git` and `gh`; no GitHub API client.
 - Drivers in order: Claude Code, Codex, OpenCode. Gemini only if time allows.
 - Deterministic scoring (section 4). Tamper penalty included. LLM judge off by default.
 - Ratings: OpenSkill, marketed as "Elo-style".

@@ -32,7 +32,7 @@ still has the flags Bakeoff drives it with, and that `git` and `gh` are ready.
 
 You need:
 
-- **Bun 1.3+** — the binary runs on Bun
+- **Node 22+** — the binary runs on Node
 - **git**
 - **GitHub CLI** (`gh`), authenticated: Bakeoff shells out to it for issues, pushes and PRs
 - at least one agent CLI, installed and logged in

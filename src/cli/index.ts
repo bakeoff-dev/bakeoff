@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { Command } from 'commander';
 import { DriverIdSchema } from '@contract';
 import { NAMES } from '../core/names';
