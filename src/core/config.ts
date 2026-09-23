@@ -16,6 +16,8 @@ export function parseDuration(s: string): number {
 
 export const ConfigSchema = z
   .object({
+    /** Install step, run in the baseline and in every agent worktree before it launches. */
+    setup: z.string().optional(),
     test: z.string().optional(),
     lint: z.string().optional(),
     typecheck: z.string().optional(),

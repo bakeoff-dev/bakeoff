@@ -108,7 +108,7 @@ async function setup(
     ...defaultDeps(),
     exec: routed,
     getDriver: (id) => drivers[id as 'claude' | 'codex'],
-    baseline: async () => ({ testsGreen: true, lintGreen: null, typecheckGreen: null }),
+    baseline: async () => ({ testsGreen: true, lintGreen: null, typecheckGreen: null, setupError: null }),
     scoreAgent: null,
     finalize: null,
   });

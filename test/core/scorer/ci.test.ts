@@ -80,3 +80,51 @@ describe('ciComponent', () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe('ci before workflows register', () => {
+  const repo = { owner: 'o', name: 'r' };
+  const noChecks = { code: 0, stdout: '[]', stderr: '' };
+
+  it('keeps waiting when the repo has workflow files', async () => {
+    // GitHub registers a workflow seconds after the PR opens; until then gh honestly
+    // reports nothing, and scoring that as n/a would lose the check entirely.
+    let calls = 0;
+    const run = async () => {
+      calls += 1;
+      return calls < 3
+        ? noChecks
+        : { code: 0, stdout: JSON.stringify([{ name: 'test', state: 'success', bucket: 'pass' }]), stderr: '' };
+    };
+    const c = await ciComponent({
+      repo, prNumber: 1, timeoutMs: 60_000, intervalMs: 1, hasWorkflows: true, run, sleep: async () => {},
+    });
+    expect(c.awarded).toBe(10);
+    expect(calls).toBe(3);
+  });
+
+  it('calls it n/a at once when the repo has no workflow files', async () => {
+    let calls = 0;
+    const run = async () => {
+      calls += 1;
+      return noChecks;
+    };
+    const c = await ciComponent({
+      repo, prNumber: 1, timeoutMs: 60_000, intervalMs: 1, hasWorkflows: false, run, sleep: async () => {},
+    });
+    expect(c.awarded).toBeNull();
+    expect(c.detail).toMatch(/no checks/);
+    expect(calls).toBe(1);
+  });
+
+  it('gives up as n/a, not zero, if workflows never report', async () => {
+    let t = 0;
+    const c = await ciComponent({
+      repo, prNumber: 1, timeoutMs: 100, intervalMs: 1, hasWorkflows: true,
+      run: async () => noChecks,
+      sleep: async () => { t += 60; },
+      now: () => t,
+    });
+    expect(c.awarded).toBeNull();
+    expect(c.detail).toMatch(/before the ci timeout/);
+  });
+});

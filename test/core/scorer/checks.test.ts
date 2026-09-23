@@ -81,7 +81,7 @@ describe('computeBaseline', () => {
       runId: 'base-test',
       config: { test: 'test -f a.txt', lint: 'exit 1' },
     });
-    expect(b).toEqual({ testsGreen: true, lintGreen: false, typecheckGreen: null });
+    expect(b).toEqual({ testsGreen: true, lintGreen: false, typecheckGreen: null, setupError: null });
   });
 
   it('runs setup in the baseline worktree before the checks', async () => {
@@ -92,7 +92,7 @@ describe('computeBaseline', () => {
       runId: 'base-setup',
       config: { setup: 'touch installed', test: 'test -f installed' },
     });
-    expect(b).toEqual({ testsGreen: true, lintGreen: null, typecheckGreen: null });
+    expect(b).toEqual({ testsGreen: true, lintGreen: null, typecheckGreen: null, setupError: null });
   });
 
   it('fails every check when setup fails, and says why', async () => {

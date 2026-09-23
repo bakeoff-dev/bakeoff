@@ -23,7 +23,8 @@
   "baseline": {
     "testsGreen": true,
     "lintGreen": null,
-    "typecheckGreen": true
+    "typecheckGreen": true,
+    "setupError": null
   },
   "configured": {
     "test": true,

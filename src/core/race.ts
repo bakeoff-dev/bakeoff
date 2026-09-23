@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SCHEMA_VERSION, type AgentResult, type Baseline, type Caps, type Configured, type DriverId, type RaceEvent, type RepoInfo, type RunRecord, type TokenUsage } from '@contract';
+import { SCHEMA_VERSION, type AgentResult, type Baseline, type Caps, type Configured, type DriverId, type RaceEvent, type RepoInfo, type RunRecord, type ScoreComponent, type TokenUsage } from '@contract';
 import type { AgentSpec } from './agentspec';
 import type { BudgetMeter } from './budget';
-import { configuredFlags, type Config } from './config';
+import { configuredFlags, parseDuration, type Config } from './config';
 import { getDriver as registryGet } from './drivers/registry';
 import { addTokens, type AgentEvent, type Driver } from './drivers/types';
 import { exec as realExec, type Exec } from './exec';
@@ -15,6 +15,12 @@ import { commitLeftovers, createPr, ensureLabels, pushBranch } from './publish';
 import { appendEvent, paths, writeRun } from './store';
 import { oneLine } from './text';
 import { createWorktree, removeWorktree, worktreeDir } from './worktree';
+import { computeBaseline } from './scorer/checks';
+import { ciComponent } from './scorer/ci';
+import { finalizeScores, scoreAgent as realScoreAgent } from './scorer';
+import { updateLadder } from './ladder';
+import { readLadder, writeLadder } from './store';
+import { runProcess } from './process';
 
 export interface RaceInput {
   repoRoot: string; repo: RepoInfo; issue: IssueData; config: Config;
@@ -24,7 +30,11 @@ export interface ScoreCtx {
   worktree: string; repoRoot: string; baseSha: string; config: Config;
   agent: AgentResult; hiddenDir: string; repo: RepoInfo;
 }
-export type ScoreAgentFn = (ctx: ScoreCtx) => Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved'>>;
+export type ScoreAgentFn = (
+  ctx: ScoreCtx,
+  baselineGreen: boolean | null,
+  ci: ScoreComponent | null | Promise<ScoreComponent | null>,
+) => Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved'>>;
 export type FinalizeFn = (agents: AgentResult[], configured: Configured) => AgentResult[];
 
 export interface AbortRegistry { signalFor(driver: DriverId): AbortSignal; abort(driver: DriverId): void }
@@ -38,6 +48,8 @@ export interface RaceDeps {
   /** Wired in Day 4. `null` means skip scoring. */
   scoreAgent: ScoreAgentFn | null;
   finalize: FinalizeFn | null;
+  /** Called once the record is final, before race.finished. null skips the ladder. */
+  persistLadder: ((repoRoot: string, rec: RunRecord) => void) | null;
   onEvent?: (e: RaceEvent) => void;
   abort?: AbortRegistry;
 }
@@ -60,13 +72,22 @@ export function defaultDeps(): RaceDeps {
     exec: realExec,
     now: () => new Date(),
     meterFor: defaultMeter,
-    baseline: async () => ({ testsGreen: null, lintGreen: null, typecheckGreen: null }),
-    scoreAgent: null,
-    finalize: null,
+    baseline: (i) =>
+      computeBaseline({ repoRoot: i.repoRoot, baseSha: i.repo.baseSha, runId: i.runId, config: i.config }),
+    scoreAgent: realScoreAgent,
+    finalize: finalizeScores,
+    persistLadder: (repoRoot, rec) => writeLadder(repoRoot, updateLadder(readLadder(repoRoot), rec)),
   };
 }
 
 const LABEL_COLOR = 'F59E0B';
+const SETUP_TIMEOUT_MS = 15 * 60_000;
+
+/** Workflows register seconds after a PR opens; without any, "no checks" is final. */
+async function hasWorkflowFiles(repoRoot: string, baseSha: string, run: Exec): Promise<boolean> {
+  const r = await run('git', ['ls-tree', '-r', '--name-only', baseSha, '--', '.github/workflows'], { cwd: repoRoot });
+  return r.code === 0 && r.stdout.trim().length > 0;
+}
 
 /**
  * Agents race in parallel, but `git worktree add`, `sparse-checkout set` and
@@ -102,6 +123,8 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
   };
   const at = (): string => deps.now().toISOString();
 
+  // Whether CI can ever report: a repo with no workflow files never will.
+  const hasWorkflows = await hasWorkflowFiles(repoRoot, repo.baseSha, deps.exec);
   const packet = buildPacket({ issue, guidance: readGuidance(repoRoot), config });
   const baseline = await deps.baseline(input);
   const configured = configuredFlags(config);
@@ -146,9 +169,44 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
   record.agents = deps.finalize ? deps.finalize(results, configured) : results;
   record.winner = record.agents.find((a) => a.rank === 1)?.driver ?? null;
   record.finishedAt = at();
+  if (deps.persistLadder) {
+    try {
+      deps.persistLadder(repoRoot, record);
+    } catch (err) {
+      // A ladder write must not cost us the run record.
+      appendFileSync(p.log(runId, 'race'), `[${NAMES.bin}] ladder update failed: ${(err as Error).message}\n`);
+    }
+  }
   writeRun(repoRoot, record);
   emit({ type: 'race.finished', at: record.finishedAt, record });
   return record;
+
+  /**
+   * Install dependencies in an agent's worktree before it starts, so every agent begins
+   * from the same working repo. Returns null on success, or the reason it failed.
+   */
+  async function runSetup(dir: string, logPath: string): Promise<string | null> {
+    const cmd = config.setup;
+    if (!cmd) return null;
+    appendFileSync(logPath, `[${NAMES.bin}] setup: ${cmd}\n`);
+    const r = await runProcess({
+      cmd: 'sh', args: ['-lc', cmd], cwd: dir, timeoutMs: SETUP_TIMEOUT_MS, logPath,
+    });
+    if (r.status !== 'ok') {
+      const why = r.status === 'timeout' ? 'setup timed out' : `setup failed (exit ${r.exitCode ?? '?'})`;
+      appendFileSync(logPath, `[${NAMES.bin}] ${why}\n`);
+      return why;
+    }
+    // Untracked output is fine; a modified tracked file is not. Lockfile churn from a
+    // non-frozen install would otherwise land in every agent's diff and be scored.
+    const dirty = await deps.exec('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: dir });
+    if (dirty.stdout.trim().length > 0) {
+      const why = 'setup modified tracked files; use a frozen install';
+      appendFileSync(logPath, `[${NAMES.bin}] ${why}\n${dirty.stdout.trim()}\n`);
+      return why;
+    }
+    return null;
+  }
 
   async function runOne(agent: AgentResult): Promise<AgentResult> {
     const driver = deps.getDriver(agent.driver);
@@ -162,6 +220,20 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
 
     await gitLock(() => createWorktree({ repoRoot, baseSha: repo.baseSha, branch: agent.branch, dir }, deps.exec));
     emit({ type: 'agent.started', at: at(), driver: agent.driver, branch: agent.branch, model: agent.model });
+
+    if (config.setup) {
+      const failure = await runSetup(dir, logPath);
+      if (failure !== null) {
+        const failed: AgentResult = { ...agent, status: 'crashed', exitCode: null, durationMs: 0 };
+        emit({
+          type: 'agent.exited', at: at(), driver: agent.driver, status: 'crashed',
+          exitCode: null, durationMs: 0, costUsd: null, tokens: null,
+        });
+        failed.logTail = tail(logPath);
+        if (!input.keepWorktrees) await gitLock(() => removeWorktree({ repoRoot, dir }, deps.exec));
+        return failed;
+      }
+    }
 
     const onEvent = (e: AgentEvent): void => {
       // Agent text is untrusted: a heredoc commit message arrives with real newlines.
@@ -226,11 +298,32 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
         writeFileSync(logPath, `\n[${NAMES.bin}] publish failed: ${(err as Error).message}\n`, { flag: 'a' });
       }
       if (deps.scoreAgent) {
-        const s = await deps.scoreAgent({
-          worktree: dir, repoRoot, baseSha: repo.baseSha, config, agent: out, hiddenDir: p.hiddenDir, repo,
-        });
-        out = { ...out, ...s };
-        if (out.score) emit({ type: 'agent.scored', at: at(), driver: agent.driver, score: out.score });
+        // CI polls from the moment the PR exists, alongside this agent's local checks.
+        const ci: Promise<ScoreComponent | null> =
+          out.prNumber !== null && configured.ci
+            ? ciComponent({
+                repo,
+                prNumber: out.prNumber,
+                timeoutMs: parseDuration(config.ci_timeout),
+                hasWorkflows,
+                run: deps.exec,
+              }).catch(() => null)
+            : Promise.resolve(null);
+        try {
+          const s = await deps.scoreAgent(
+            { worktree: dir, repoRoot, baseSha: repo.baseSha, config, agent: out, hiddenDir: p.hiddenDir, repo },
+            baseline.testsGreen,
+            ci,
+          );
+          out = { ...out, ...s };
+          if (out.score) emit({ type: 'agent.scored', at: at(), driver: agent.driver, score: out.score });
+        } catch (err) {
+          // Scoring is the last thing that happens to an agent; losing it must not cost
+          // the run, the agent's status, or its PR. It scores null and ranks nowhere.
+          await ci.catch(() => null);
+          out = { ...out, score: null, rank: null };
+          appendFileSync(logPath, `\n[${NAMES.bin}] scoring failed: ${(err as Error).message}\n`);
+        }
       }
     }
 

@@ -64,6 +64,13 @@ test/           vitest
 - Headless Claude (`-p`) does not raise the workspace-trust prompt in a fresh `$TMPDIR` git repo, verified on 2.1.259. No `~/.claude.json` pre-seeding is needed.
 - The `doctor` auth probe pins `--model claude-haiku-4-5`. Opus bills roughly $0.21 for the system-prompt cache write alone, so a small `--max-budget-usd` trips the cap on turn one and reports `error_max_budget_usd`, which looks like an auth failure but is not. `probeAuthOk` treats a budget stop as proof the API accepted us.
 
+## Scoring
+
+- `defaultDeps()` in `race.ts` wires the real baseline, scorer, finalizer and ladder. A race scores itself; nothing else has to ask.
+- Scoring is guarded per agent. If it throws, the agent keeps its status and PR, scores null, ranks nowhere, and the reason lands in its log. The race always reaches `race.finished` and always writes a final `run.json`.
+- CI polls from the moment an agent's PR exists, alongside that agent's local checks. With files under `.github/workflows/`, "no checks reported" means not yet and keeps polling to `ci_timeout`; without them it means never and scores n/a at once.
+- `setup:` runs in the baseline worktree and in every agent worktree before that agent launches. A failure crashes the agent before it starts. So does leaving a tracked file modified -- lockfile churn from a non-frozen install would otherwise land in every agent's diff and be scored as their work.
+
 ## Design
 
 - The UI is specified in `design/handoff/design_handoff_bakeoff/README.md` (tokens, type, layout, motion) with HTML references in `standalone/`. Recreate it in React; do not ship the reference HTML.

@@ -1,6 +1,7 @@
 import { rmSync } from 'node:fs';
 import type { Baseline } from '@contract';
 import { exec, must, type Exec } from '../exec';
+import { baselineBranch } from '../names';
 import { runProcess } from '../process';
 import { createWorktree, removeWorktree, worktreeDir } from '../worktree';
 
@@ -69,23 +70,23 @@ export interface BaselineInput {
   config: { test?: string; lint?: string; typecheck?: string; setup?: string };
 }
 
-/**
- * Baseline plus, when the install step failed, the reason. The extra key is absent on the
- * happy path and dropped by `BaselineSchema` on read, so the run record keeps its shape.
- */
-export type BaselineResult = Baseline & { setupError?: string };
+/** `setupError` is null unless the install step failed. */
+export type BaselineResult = Baseline;
 
 /** Runs setup and then the configured checks on a throwaway worktree at base sha. */
 export async function computeBaseline(o: BaselineInput, run: Exec = exec): Promise<BaselineResult> {
   const dir = worktreeDir(o.runId, 'baseline');
-  const branch = `bakeoff-baseline-${o.runId}`;
+  const branch = baselineBranch(o.runId);
   await createWorktree({ repoRoot: o.repoRoot, baseSha: o.baseSha, branch, dir }, run);
   try {
     if (o.config.setup) {
       const setup = await runCheck(o.config.setup, dir);
       // Without its dependencies the repo cannot be judged green or unknown, only red.
       if (!setup.green) {
-        return { testsGreen: false, lintGreen: false, typecheckGreen: false, setupError: `setup failed (exit ${setup.exitCode})` };
+        return {
+          testsGreen: false, lintGreen: false, typecheckGreen: false,
+          setupError: `setup failed (exit ${setup.exitCode})`,
+        };
       }
     }
     const go = async (cmd?: string) => (cmd ? (await runCheck(cmd, dir)).green : null);
@@ -93,6 +94,7 @@ export async function computeBaseline(o: BaselineInput, run: Exec = exec): Promi
       testsGreen: await go(o.config.test),
       lintGreen: await go(o.config.lint),
       typecheckGreen: await go(o.config.typecheck),
+      setupError: null,
     };
   } finally {
     await removeWorktree({ repoRoot: o.repoRoot, dir, branch, deleteBranch: true }, run);

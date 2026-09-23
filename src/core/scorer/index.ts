@@ -49,7 +49,8 @@ export function rankAgents(agents: AgentResult[]): AgentResult[] {
 export async function scoreAgent(
   ctx: ScoreCtx,
   baselineGreen: boolean | null = null,
-  ci: ScoreComponent | null = null,
+  /** May be a promise: it is only awaited once the local checks are done, so both run at once. */
+  ci: ScoreComponent | null | Promise<ScoreComponent | null> = null,
 ): Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved'>> {
   const cfg: Config = ctx.config;
   const testPaths = cfg.test_paths ?? (await defaultTestPaths(ctx.worktree, ctx.baseSha));
@@ -74,12 +75,13 @@ export async function scoreAgent(
     : { id: 'hidden_tests', max: 20, awarded: null, detail: 'n/a' };
   const [typecheck, lint] = await checkComponents({ worktree: ctx.worktree, config: cfg });
 
+  const settledCi = await ci;
   const components: ScoreComponent[] = [
     visible,
     hidden,
     typecheck,
     lint,
-    ci ?? { id: 'ci', max: 10, awarded: null, detail: 'n/a' },
+    settledCi ?? { id: 'ci', max: 10, awarded: null, detail: 'n/a' },
     { id: 'diff', max: 10, awarded: null, detail: '' },
     { id: 'judge', max: 15, awarded: null, detail: 'n/a' },
   ];
