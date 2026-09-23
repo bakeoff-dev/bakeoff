@@ -49,6 +49,20 @@ export const ConfigSchema = z
     if (!c.test && !c.lint && !c.typecheck) {
       ctx.addIssue({ code: 'custom', message: `${NAMES.configFile} needs at least one of: test, lint, typecheck` });
     }
+    // `git cat-file -e <sha>:<path>` treats a glob as a literal name, so a pattern here
+    // matches nothing and the paths it meant to cover go unrestored and unprotected --
+    // silently. Auto-detection already covers test/, *.test.*, *_test.go and test_*.py.
+    for (const [i, path] of (c.test_paths ?? []).entries()) {
+      if (/[*?[\]]/.test(path)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['test_paths', i],
+          message:
+            `test_paths does not take globs: "${path}". List directories or files, ` +
+            'or leave test_paths out and let Bakeoff detect them.',
+        });
+      }
+    }
     try {
       parseAgentSpecs(c.agents);
     } catch (e) {

@@ -31,3 +31,22 @@ describe('parseConfig', () => {
     expect(configuredFlags(c)).toEqual({ test: true, lint: false, typecheck: true, hiddenTests: false, ci: false, judge: false });
   });
 });
+
+describe('test_paths', () => {
+  const base = 'test: bun test\n';
+
+  it('accepts directories and files', () => {
+    const c = parseConfig(`${base}test_paths: [test, src/foo.test.ts, tests/]\n`);
+    expect(c.test_paths).toEqual(['test', 'src/foo.test.ts', 'tests/']);
+  });
+
+  it('rejects a glob, which git would read as a literal filename', () => {
+    for (const glob of ['**/*.test.ts', 'src/*.spec.ts', 'test/?.ts', 'test/[ab].ts']) {
+      expect(() => parseConfig(`${base}test_paths: ["${glob}"]\n`)).toThrow(/does not take globs/);
+    }
+  });
+
+  it('names the offending entry so the fix is obvious', () => {
+    expect(() => parseConfig(`${base}test_paths: [test, "**/*.test.ts"]\n`)).toThrow(/\*\*\/\*\.test\.ts/);
+  });
+});

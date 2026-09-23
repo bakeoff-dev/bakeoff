@@ -1,6 +1,6 @@
 import type { DriverId, ScoreComponent } from '@contract';
 import { exec, must, type Exec } from '../exec';
-import { TEST_FILE_NAME } from './checks';
+import { isTestFile } from './tamper';
 
 export interface DiffStats {
   files: string[];
@@ -9,12 +9,6 @@ export interface DiffStats {
   /** The test share of the same diff, so discipline can judge the product change alone. */
   testFiles: string[];
   testLines: number;
-}
-
-/** A test by the shared name rule, or by sitting under one of the run's test paths. */
-export function isTestFile(file: string, testPaths: readonly string[]): boolean {
-  if (TEST_FILE_NAME.test(file)) return true;
-  return testPaths.some((p) => file === p || file.startsWith(`${p}/`));
 }
 
 /**
@@ -41,7 +35,7 @@ export async function diffStats(
     const lines = (a === '-' ? 0 : Number(a)) + (r === '-' ? 0 : Number(r));
     added += a === '-' ? 0 : Number(a);
     removed += r === '-' ? 0 : Number(r);
-    if (isTestFile(f, testPaths)) {
+    if (isTestFile(f, [...testPaths])) {
       testFiles.add(f);
       testLines += lines;
     }

@@ -56,7 +56,7 @@ Every string above lives in `src/core/names.ts`. A rename touches one file.
 test: bun test                # run from worktree root; exit 0 = green
 lint: bun run lint
 typecheck: bunx tsc --noEmit
-test_paths: [test/, "**/*.test.ts"] # restored from base ref before scoring; default: auto-detect
+test_paths: [test/, src/paginate.test.ts]  # directories or files, no globs; default: auto-detect
 agents: [claude, codex, opencode]
 budget_usd: 3.00
 timeout: 20m
