@@ -1,0 +1,6 @@
+{"type":"init","timestamp":"2026-09-23T02:12:03.403Z","session_id":"c9417fd4-e94c-44da-b3f2-5432c27745fe","model":"auto"}
+{"type":"message","timestamp":"2026-09-23T02:12:03.404Z","role":"user","content":"Create a file named hello.txt containing the single word pong, then stop."}
+{"type":"tool_use","timestamp":"2026-09-23T02:12:31.411Z","tool_name":"write_file","tool_id":"write_file__call_450488","parameters":{"content":"pong\n","file_path":"hello.txt"}}
+{"type":"tool_result","timestamp":"2026-09-23T02:12:31.436Z","tool_id":"write_file__call_450488","status":"success"}
+{"type":"message","timestamp":"2026-09-23T02:12:33.108Z","role":"assistant","content":"I have created `hello.txt` containing the single word `pong`.","delta":true}
+{"type":"result","timestamp":"2026-09-23T02:12:33.134Z","status":"success","stats":{"total_tokens":33338,"input_tokens":32038,"output_tokens":78,"cached":12207,"input":19831,"duration_ms":29731,"tool_calls":1,"models":{"gemini-3.1-flash-lite":{"total_tokens":1072,"input_tokens":873,"output_tokens":36,"cached":0,"input":873},"gemini-3.5-flash":{"total_tokens":32266,"input_tokens":31165,"output_tokens":42,"cached":12207,"input":18958}}}}

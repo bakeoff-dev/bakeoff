@@ -27,6 +27,7 @@ export const DRIVER_META: Record<DriverId, { name: string; color: string }> = {
   codex: { name: 'Codex', color: '#5EC8CE' },
   opencode: { name: 'OpenCode', color: '#E58BC7' },
   gemini: { name: 'Gemini CLI', color: '#9BCB6E' },
+  cursor: { name: 'Cursor', color: '#A99BF0' },
 };
 
 export const PILL: Record<AgentStatus, { label: string; fg: string; bg: string }> = {

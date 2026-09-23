@@ -54,7 +54,10 @@ test/           vitest
 ## Driver notes
 
 - Claude Code 2.1.259 is installed and verified. `--max-turns` does not exist in this version; `maxTurns` is ignored for Claude.
-- Codex (`@openai/codex`) and OpenCode (`opencode-ai`) are not installed on the dev machine yet. Install and record a fixture before writing the parser.
+- Codex 0.156.0, Gemini 0.60.0 and cursor-agent 2026.09.02 are installed and verified. OpenCode has a schema slot and a UI colour but no driver yet.
+- Codex names no model anywhere in `--json`, so a default-model run meters to `cost: null`. Its prompt must go on stdin; passed as an argument it still blocks waiting for stdin to close.
+- Gemini exits 55 in a folder it has not been told to trust, and every worktree is new. `GEMINI_CLI_TRUST_WORKSPACE=true` goes in the launch and probe env; `--skip-trust` is feature-detected as a second route.
+- cursor-agent raises a workspace-trust prompt in a fresh directory too; `--force` answers it. Its `model` is a display label ("Codex 5.3 Low"), not the id you pass, so a requested model wins over the label.
 - Feature-detect flags by parsing `<cli> --help` in `doctor()`. Flags churn.
 - Headless Claude (`-p`) does not raise the workspace-trust prompt in a fresh `$TMPDIR` git repo, verified on 2.1.259. No `~/.claude.json` pre-seeding is needed.
 - The `doctor` auth probe pins `--model claude-haiku-4-5`. Opus bills roughly $0.21 for the system-prompt cache write alone, so a small `--max-budget-usd` trips the cap on turn one and reports `error_max_budget_usd`, which looks like an auth failure but is not. `probeAuthOk` treats a budget stop as proof the API accepted us.
