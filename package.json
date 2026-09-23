@@ -28,7 +28,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "build:ui": "vite build --config ui/vite.config.ts && mv dist/index.html dist/ui.html",
-    "build:cli": "bun build src/cli/index.ts --target=bun --outfile=dist/cli.js",
+    "build:cli": "bun build src/cli/index.ts --target=bun --outdir dist --entry-naming cli.js",
     "build": "bun run build:ui && bun run build:cli"
   },
   "dependencies": {

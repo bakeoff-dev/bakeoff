@@ -25,14 +25,10 @@ export function branchName(issue: number, driver: string, runId: string): string
   return `${NAMES.branchPrefix}/${issue}-${driver}-${runId}`;
 }
 
-/** The throwaway branch the baseline worktree sits on. */
-/**
- * Said wherever a score is shown for a race that could not check the issue itself.
- * Without it the numbers read as a verdict on the work rather than on the repo.
- */
-export const NO_ACCEPTANCE_TEST =
-  'No test checks this issue. Scores show nothing broke, not that the issue was solved.';
+/** Lives in the contract so the UI can say it too; re-exported here for the CLI. */
+export { NO_ACCEPTANCE_TEST } from '../contract';
 
+/** The throwaway branch the baseline worktree sits on. */
 export function baselineBranch(runId: string): string {
   return `${NAMES.branchPrefix}-baseline-${runId}`;
 }

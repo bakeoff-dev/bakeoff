@@ -74,7 +74,16 @@ export function segmentsOf(score: ScoreBreakdown): Segment[] {
   return raw.map((s) => ({ ...s, widthPct: ((s.na ? s.max : Math.max(0, s.awarded ?? 0)) / trackMax) * 100 }));
 }
 
-export const fmtCost = (n: number | null): string => (n === null ? 'n/a' : `$${n.toFixed(2)}`);
+/**
+ * null is "unavailable" and renders as such; it is never coerced to $0.00. A real cost
+ * too small to show at two decimals reads as `<$0.01`, because a cheap model rounding
+ * to `$0.00` looks free rather than nearly free. Mirrors src/cli/render/style.ts.
+ */
+export const fmtCost = (n: number | null): string => {
+  if (n === null) return 'n/a';
+  if (n > 0 && n < 0.005) return '<$0.01';
+  return `$${n.toFixed(2)}`;
+};
 export function fmtClock(ms: number): string {
   const s = Math.round(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

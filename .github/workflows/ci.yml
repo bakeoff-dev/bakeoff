@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch makes the running job's answer stale.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # vitest runs under Node even when bun launches it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The tests build real git repos in temp dirs, and `git commit` refuses to
+      # run without an identity.
+      - name: Configure git identity
+        run: |
+          git config --global user.name "bakeoff ci"
+          git config --global user.email "ci@bakeoff.dev"
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run test
+
+      - run: bun run typecheck
+
+      - run: bun run build
