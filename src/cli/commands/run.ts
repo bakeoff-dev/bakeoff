@@ -7,11 +7,12 @@ import { fetchIssue, listOpenIssues, parseIssueRef, type IssueRef } from '../../
 import { NAMES } from '../../core/names';
 import { defaultDeps, runRace } from '../../core/race';
 import { computeBaseline } from '../../core/scorer/checks';
-import { newRunId, paths } from '../../core/store';
+import { newRunId, paths, readLadder } from '../../core/store';
 import { detectRepo } from '../../core/repo';
 
 import { progressRenderer } from '../render/progress';
-import { DRIVER_NAME, STATUS_WORD, dim, fmtClock, fmtCost, paint, DRIVER_HEX } from '../render/style';
+import { finalTable } from '../render/table';
+import { writeCard } from './share';
 import { doctorReport } from './doctor';
 
 export interface RunOpts {
@@ -32,7 +33,10 @@ export function preflightWarnings(
     out.push(`${baseline.setupError} in the baseline worktree; every check will read red`);
   }
   if (baseline.testsGreen === false) {
-    out.push('baseline tests are already failing, so the visible-tests component cannot separate the agents');
+    out.push(
+      'baseline tests already fail at the base commit. If the repo is broken, fix it first; ' +
+        'if the issue is itself a failing test, this is expected and the agents are scored on fixing it',
+    );
   }
   if (config.hidden_tests) {
     const dir = config.hidden_tests.source || paths(repoRoot).hiddenDir;
@@ -116,14 +120,12 @@ export async function runCommand(issueArg: string | undefined, opts: RunOpts): P
   );
   live.stop();
 
-  console.log('');
-  for (const a of rec.agents) {
-    const name = paint(DRIVER_HEX[a.driver], DRIVER_NAME[a.driver].padEnd(12));
-    const model = a.model ? dim(` (${a.model})`) : '';
-    console.log(
-      `  ${name} ${STATUS_WORD[a.status].padEnd(11)} ${fmtCost(a.costUsd).padStart(6)}  ` +
-        `${fmtClock(a.durationMs).padStart(5)}  ${a.prUrl ?? 'no PR'}${model}`,
-    );
+  // The card is a nicety; a race that produced a record must not fail on it.
+  try {
+    await writeCard(repo.root, runId);
+  } catch (e) {
+    p.log.warn(`could not render the share card: ${(e as Error).message}`);
   }
-  console.log(`\n  Run record  ${NAMES.stateDir}/runs/${runId}.json\n`);
+
+  console.log(finalTable({ record: rec, ladder: readLadder(repo.root) }));
 }

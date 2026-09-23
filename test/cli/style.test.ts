@@ -17,6 +17,15 @@ describe('style', () => {
     expect(fmtCost(null)).toBe('n/a');
   });
 
+  it('distinguishes a tiny real cost from free', () => {
+    // gpt-6-luna raced for $0.0019; "$0.00" would read as free
+    expect(fmtCost(0.00187244)).toBe('<$0.01');
+    expect(fmtCost(0.004)).toBe('<$0.01');
+    expect(fmtCost(0.005)).toBe('$0.01');
+    expect(fmtCost(0)).toBe('$0.00');
+    expect(fmtCost(null)).toBe('n/a');
+  });
+
   it('never renders an unavailable cost as zero', () => {
     // null means "unavailable", and must not be coerced to 0
     expect(fmtCost(null)).not.toBe('$0.00');

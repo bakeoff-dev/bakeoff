@@ -4,7 +4,9 @@ import { DriverIdSchema } from '@contract';
 import { NAMES } from '../core/names';
 import { doctorCommand, registeredDriverIds } from './commands/doctor';
 import { initCommand } from './commands/init';
+import { ladderCommand } from './commands/ladder';
 import { runCommand } from './commands/run';
+import { shareCommand } from './commands/share';
 import '../core/drivers/index';
 
 const program = new Command()
@@ -37,5 +39,15 @@ program
   .command('init')
   .description(`Write ${NAMES.configFile} and gitignore entries`)
   .action(() => initCommand());
+
+program
+  .command('share [id]')
+  .description('Render a run\'s share card to a PNG (defaults to the latest run)')
+  .action(shareCommand);
+
+program
+  .command('ladder')
+  .description("Show this repository's agent ladder")
+  .action(ladderCommand);
 
 program.parseAsync(process.argv);

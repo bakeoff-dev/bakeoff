@@ -190,7 +190,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     if (!cmd) return null;
     appendFileSync(logPath, `[${NAMES.bin}] setup: ${cmd}\n`);
     const r = await runProcess({
-      cmd: 'sh', args: ['-lc', cmd], cwd: dir, timeoutMs: SETUP_TIMEOUT_MS, logPath,
+      cmd: 'sh', args: ['-c', cmd], cwd: dir, timeoutMs: SETUP_TIMEOUT_MS, logPath,
     });
     if (r.status !== 'ok') {
       const why = r.status === 'timeout' ? 'setup timed out' : `setup failed (exit ${r.exitCode ?? '?'})`;
@@ -219,8 +219,6 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     let tokens: TokenUsage | null = null;
 
     await gitLock(() => createWorktree({ repoRoot, baseSha: repo.baseSha, branch: agent.branch, dir }, deps.exec));
-    emit({ type: 'agent.started', at: at(), driver: agent.driver, branch: agent.branch, model: agent.model });
-
     if (config.setup) {
       const failure = await runSetup(dir, logPath);
       if (failure !== null) {
@@ -234,6 +232,9 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
         return failed;
       }
     }
+    // Announced once the agent can actually start: setup runs before it, and a setup
+    // failure means it never does.
+    emit({ type: 'agent.started', at: at(), driver: agent.driver, branch: agent.branch, model: agent.model });
 
     const onEvent = (e: AgentEvent): void => {
       // Agent text is untrusted: a heredoc commit message arrives with real newlines.
