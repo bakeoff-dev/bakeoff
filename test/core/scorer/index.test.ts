@@ -130,6 +130,16 @@ describe('scoreAgent', () => {
     expect(by('hidden_tests')).toMatchObject({ max: 20, awarded: 20 });
   });
 
+  it('splices in the CI component the race polled for it', async () => {
+    const repo = await makeRepo({ 'src/x.ts': '1\n' });
+    await repo.commit({ 'src/x.ts': '2\n' }, 'agent work');
+    const ci: ScoreComponent = { id: 'ci', max: 10, awarded: 10, detail: '3/3 checks passed' };
+    const s = await scoreAgent(ctx(repo, { test: 'true' }), null, ci);
+    expect(s.score!.components.find((c) => c.id === 'ci')).toEqual(ci);
+    expect(s.score!.total).toBe(60);
+    expect(s.score!.maxPossible).toBe(60);
+  });
+
   it('notes a red baseline on the visible-tests component', async () => {
     const repo = await makeRepo({ 'src/x.ts': '1\n' });
     await repo.commit({ 'src/x.ts': '2\n' }, 'agent work');
