@@ -1,7 +1,8 @@
 import type { Ladder as LadderT, LadderEntry, RaceState } from '@contract';
 import { Dot } from '../components/Dot';
+import { ModelLine } from '../components/ModelLine';
 import { Sparkline } from '../components/Sparkline';
-import { DRIVER_META, T, col, fmtClock, fmtCost, surface } from '../theme';
+import { DRIVER_META, T, col, fmtClock, fmtCost, modelLabel, surface } from '../theme';
 
 const COLS = '32px 1fr 100px 80px 80px 110px 110px 140px';
 const right = { textAlign: 'right' as const };
@@ -50,9 +51,13 @@ export function Ladder({ ladder, state }: { ladder: LadderT | null; state: RaceS
         ) : rows.map((e, i) => (
           <div key={e.driver} style={{ ...row, padding: '16px 0', borderBottom: i === rows.length - 1 ? 'none' : `1px solid ${T.divider}` }}>
             <span style={{ fontSize: 13, fontWeight: 500, color: T.muted }}>{i + 1}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Dot color={DRIVER_META[e.driver].color} px={8} />
-              <span style={{ fontSize: 14, fontWeight: 500 }}>{DRIVER_META[e.driver].name}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Dot color={DRIVER_META[e.driver].color} px={8} />
+                <span style={{ fontSize: 14, fontWeight: 500 }}>{DRIVER_META[e.driver].name}</span>
+              </div>
+              {/* An entry's model is the competitor's requested model; v1 rows migrate to null. */}
+              <ModelLine text={modelLabel(null, e.model)} indent={18} />
             </div>
             <span style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-.03em', ...right }}>{e.rating}</span>
             <span style={{ fontSize: 14, ...right }}>{e.races}</span>

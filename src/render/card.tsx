@@ -23,6 +23,16 @@ const FLAG_WORD: Record<TamperFlag['rule'], string> = {
 const cost = (value: number | null) =>
   value === null ? 'n/a' : `$${value.toFixed(2)}`;
 
+/**
+ * Mirrors `modelLabel` in ui/src/theme.ts, which the card cannot import: the model that
+ * ran, marked `auto:` when the provider picked it, and plain `auto` when neither side
+ * named one. Kept in step with the UI the same way META is.
+ */
+const model = (agent: RunRecord['agents'][number]) => {
+  if (agent.model === null) return agent.requestedModel ?? 'auto';
+  return agent.requestedModel === null ? `auto: ${agent.model}` : agent.model;
+};
+
 const clock = (ms: number) => {
   const seconds = Math.round(ms / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -115,18 +125,23 @@ async function renderSvg(rec: RunRecord, embedFont: boolean): Promise<string> {
             justifyContent: 'space-between',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: 7,
-                background: winnerColor,
-                display: 'flex',
-              }}
-            />
-            <span style={{ fontSize: 28, fontWeight: 500 }}>
-              {META[winner.driver].name}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 7,
+                  background: winnerColor,
+                  display: 'flex',
+                }}
+              />
+              <span style={{ fontSize: 28, fontWeight: 500 }}>
+                {META[winner.driver].name}
+              </span>
+            </div>
+            <span style={{ fontSize: 18, color: MUTED, paddingLeft: 26 }}>
+              {model(winner)}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
@@ -187,7 +202,7 @@ async function renderSvg(rec: RunRecord, embedFont: boolean): Promise<string> {
                   flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 6,
+                  gap: 3,
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -204,6 +219,9 @@ async function renderSvg(rec: RunRecord, embedFont: boolean): Promise<string> {
                     {META[agent.driver].name}
                   </span>
                 </div>
+                <span style={{ fontSize: 16, color: MUTED }}>
+                  {model(agent)}
+                </span>
                 <span style={{ fontSize: 16, color: MUTED }}>
                   {agent.score
                     ? `${cost(agent.costUsd)} · ${clock(agent.durationMs)}`
