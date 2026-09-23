@@ -4,7 +4,7 @@ import { costFillPct, elapsedOf, logColor } from '../../ui/src/components/Lane';
 import { T } from '../../ui/src/theme';
 
 const lane = (over: Partial<AgentLane>): AgentLane => ({
-  driver: 'claude', status: 'running', branch: 'b', startedAt: null, costUsd: null, tokens: null,
+  driver: 'claude', model: null, status: 'running', branch: 'b', startedAt: null, costUsd: null, tokens: null,
   lastAction: '', filesTouched: 0, durationMs: null, exitCode: null, prUrl: null, prNumber: null,
   score: null, ...over,
 });

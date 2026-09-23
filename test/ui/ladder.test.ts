@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { Ladder, LadderEntry } from '@contract';
+import { SCHEMA_VERSION, type Ladder, type LadderEntry } from '@contract';
 import { sparklinePoints } from '../../ui/src/components/Sparkline';
 import { ladderRows, ratingDomain } from '../../ui/src/screens/Ladder';
 
 const entry = (over: Partial<LadderEntry> & Pick<LadderEntry, 'driver'>): LadderEntry => ({
-  mu: 25, sigma: 8.333, rating: 1500, races: 0, wins: 0, avgCostUsd: null, avgDurationMs: 0,
+  model: null, mu: 25, sigma: 8.333, rating: 1500, races: 0, wins: 0, avgCostUsd: null, avgDurationMs: 0,
   history: [], ...over,
 });
 const history = (ratings: number[]) =>
@@ -43,7 +43,7 @@ describe('sparklinePoints', () => {
 describe('ladderRows', () => {
   it('ranks by rating, highest first, and skips drivers that never raced', () => {
     const ladder: Ladder = {
-      schemaVersion: 1,
+      schemaVersion: SCHEMA_VERSION,
       entries: {
         codex: entry({ driver: 'codex', rating: 1490 }),
         claude: entry({ driver: 'claude', rating: 1580 }),
@@ -55,7 +55,7 @@ describe('ladderRows', () => {
 
   it('is empty when there is no ladder yet', () => {
     expect(ladderRows(null)).toEqual([]);
-    expect(ladderRows({ schemaVersion: 1, entries: {} })).toEqual([]);
+    expect(ladderRows({ schemaVersion: SCHEMA_VERSION, entries: {} })).toEqual([]);
   });
 });
 

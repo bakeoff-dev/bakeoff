@@ -1,14 +1,16 @@
-import type { DriverId, Ladder, LadderEntry, RunRecord } from '@contract';
+import { SCHEMA_VERSION, competitorKey, type AgentResult, type Ladder, type LadderEntry, type RunRecord } from '@contract';
 import { rate, rating as newRating } from 'openskill';
 
 export const displayRating = (mu: number, sigma: number): number =>
   Math.round(1000 + 40 * (mu - 3 * sigma));
 
-function entry(ladder: Ladder, driver: DriverId): LadderEntry {
+/** A competitor is a driver on a model: the same CLI on two models rates separately. */
+function entry(ladder: Ladder, agent: Pick<AgentResult, 'driver' | 'model'>): LadderEntry {
   const initial = newRating();
   return (
-    ladder.entries[driver] ?? {
-      driver,
+    ladder.entries[competitorKey(agent.driver, agent.model)] ?? {
+      driver: agent.driver,
+      model: agent.model,
       mu: initial.mu,
       sigma: initial.sigma,
       rating: displayRating(initial.mu, initial.sigma),
@@ -27,9 +29,7 @@ export function updateLadder(ladder: Ladder, rec: RunRecord): Ladder {
   );
   if (alreadyRecorded) return ladder;
 
-  const entries: Partial<Record<DriverId, LadderEntry>> = {
-    ...ladder.entries,
-  };
+  const entries: Ladder['entries'] = { ...ladder.entries };
   const ranked = rec.agents.filter(
     (agent) => agent.status === 'ok' && agent.rank !== null,
   );
@@ -37,7 +37,7 @@ export function updateLadder(ladder: Ladder, rec: RunRecord): Ladder {
 
   if (ranked.length >= 2) {
     const teams = ranked.map((agent) => {
-      const current = entry(ladder, agent.driver);
+      const current = entry(ladder, agent);
       return [{ mu: current.mu, sigma: current.sigma }];
     });
     const ratings = rate(teams, {
@@ -45,7 +45,7 @@ export function updateLadder(ladder: Ladder, rec: RunRecord): Ladder {
     });
 
     ranked.forEach((agent, index) => {
-      const current = entry(ladder, agent.driver);
+      const current = entry(ladder, agent);
       const next = ratings[index]![0]!;
       const races = current.races + 1;
       const avgCostUsd =
@@ -56,7 +56,7 @@ export function updateLadder(ladder: Ladder, rec: RunRecord): Ladder {
             : (current.avgCostUsd * current.races + agent.costUsd) / races;
       const rating = displayRating(next.mu, next.sigma);
 
-      entries[agent.driver] = {
+      entries[competitorKey(agent.driver, agent.model)] = {
         ...current,
         mu: next.mu,
         sigma: next.sigma,
@@ -72,15 +72,12 @@ export function updateLadder(ladder: Ladder, rec: RunRecord): Ladder {
   }
 
   for (const agent of rec.agents) {
-    if (
-      entries[agent.driver]?.history.some(
-        (history) => history.runId === rec.id,
-      )
-    ) {
+    const key = competitorKey(agent.driver, agent.model);
+    if (entries[key]?.history.some((history) => history.runId === rec.id)) {
       continue;
     }
-    const current = entry(ladder, agent.driver);
-    entries[agent.driver] = {
+    const current = entry(ladder, agent);
+    entries[key] = {
       ...current,
       history: [
         ...current.history,
@@ -89,7 +86,7 @@ export function updateLadder(ladder: Ladder, rec: RunRecord): Ladder {
     };
   }
 
-  return { schemaVersion: 1, entries };
+  return { schemaVersion: SCHEMA_VERSION, entries };
 }
 
 export function renderLadder(ladder: Ladder): string {
@@ -98,7 +95,7 @@ export function renderLadder(ladder: Ladder): string {
     .sort((left, right) => right.rating - left.rating);
   const header = ['agent', 'rating', 'races', 'wins', 'avg cost', 'avg time'];
   const data = rows.map((item) => [
-    item.driver,
+    competitorKey(item.driver, item.model),
     String(item.rating),
     String(item.races),
     String(item.wins),

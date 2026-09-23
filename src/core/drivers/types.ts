@@ -11,12 +11,16 @@ export type AgentEvent =
 
 export interface LaunchInput {
   packet: string; packetPath: string; worktree: string; branch: string;
+  /** Requested model, or null to let the CLI choose -- drivers pass no model flag then. */
+  model: string | null;
   caps: Caps; meter: BudgetMeter; onEvent: (e: AgentEvent) => void; signal: AbortSignal;
   logPath: string;
 }
 export interface LaunchResult {
   exitCode: number | null; status: Exclude<AgentStatus, 'running'>;
   tokens: TokenUsage | null; costUsd: number | null; durationMs: number; raw: unknown;
+  /** The model the CLI reported actually running, when it says; null when it does not. */
+  model: string | null;
 }
 export interface Driver {
   id: DriverId; displayName: string; color: string;

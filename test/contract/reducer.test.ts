@@ -30,7 +30,7 @@ describe('reducer', () => {
     expect(oc.lastAction).toBe('reading src/index.ts');
   });
   it('ignores events for unknown drivers', () => {
-    const s = applyEvent(initialState, { type: 'agent.started', at: 'x', driver: 'codex', branch: 'b' });
+    const s = applyEvent(initialState, { type: 'agent.started', at: 'x', driver: 'codex', branch: 'b', model: null });
     expect(s.agents).toHaveLength(0);
   });
 });

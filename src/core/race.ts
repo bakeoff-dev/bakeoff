@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentResult, Baseline, Caps, Configured, DriverId, RaceEvent, RepoInfo, RunRecord, TokenUsage } from '@contract';
+import { SCHEMA_VERSION, type AgentResult, type Baseline, type Caps, type Configured, type DriverId, type RaceEvent, type RepoInfo, type RunRecord, type TokenUsage } from '@contract';
+import type { AgentSpec } from './agentspec';
 import type { BudgetMeter } from './budget';
 import { configuredFlags, type Config } from './config';
 import { getDriver as registryGet } from './drivers/registry';
@@ -17,7 +18,7 @@ import { createWorktree, removeWorktree, worktreeDir } from './worktree';
 
 export interface RaceInput {
   repoRoot: string; repo: RepoInfo; issue: IssueData; config: Config;
-  agents: readonly DriverId[]; caps: Caps; runId: string; keepWorktrees?: boolean;
+  agents: readonly AgentSpec[]; caps: Caps; runId: string; keepWorktrees?: boolean;
 }
 export interface ScoreCtx {
   worktree: string; repoRoot: string; baseSha: string; config: Config;
@@ -105,7 +106,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
   const baseline = await deps.baseline(input);
   const configured = configuredFlags(config);
   const record: RunRecord = {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     id: runId,
     createdAt: at(),
     finishedAt: null,
@@ -115,8 +116,9 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     caps: input.caps,
     baseline,
     configured,
-    agents: input.agents.map((d) => ({
-      driver: d, status: 'running', branch: branchName(issue.info.number, d, runId),
+    // `model` starts as the requested model and is replaced by whatever the CLI reports.
+    agents: input.agents.map(({ driver: d, model }) => ({
+      driver: d, model, status: 'running', branch: branchName(issue.info.number, d, runId),
       exitCode: null, durationMs: 0, costUsd: null, tokens: null,
       filesTouched: [], linesAdded: 0, linesRemoved: 0,
       prUrl: null, prNumber: null, score: null, rank: null, logTail: '',
@@ -126,7 +128,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
   writeRun(repoRoot, record);
   emit({
     type: 'race.started', at: at(), runId, issue: issue.info, repo,
-    agents: [...input.agents], caps: input.caps, baseline,
+    agents: input.agents.map((a) => a.driver), caps: input.caps, baseline,
   });
 
   mkdirSync(p.logsDir(runId), { recursive: true });
@@ -157,7 +159,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     let tokens: TokenUsage | null = null;
 
     await gitLock(() => createWorktree({ repoRoot, baseSha: repo.baseSha, branch: agent.branch, dir }, deps.exec));
-    emit({ type: 'agent.started', at: at(), driver: agent.driver, branch: agent.branch });
+    emit({ type: 'agent.started', at: at(), driver: agent.driver, branch: agent.branch, model: agent.model });
 
     const onEvent = (e: AgentEvent): void => {
       // Agent text is untrusted: a heredoc commit message arrives with real newlines.
@@ -180,10 +182,14 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     let out: AgentResult = { ...agent };
     try {
       const r = await driver.launch({
-        packet: packet.text, packetPath, worktree: dir, branch: agent.branch,
+        packet: packet.text, packetPath, worktree: dir, branch: agent.branch, model: agent.model,
         caps: input.caps, meter, onEvent, signal: abort.signalFor(agent.driver), logPath,
       });
-      out = { ...out, status: r.status, exitCode: r.exitCode, durationMs: r.durationMs, costUsd: r.costUsd, tokens: r.tokens };
+      // Prefer what the CLI says it ran over what we asked for; fall back to the request.
+      out = {
+        ...out, status: r.status, exitCode: r.exitCode, durationMs: r.durationMs,
+        costUsd: r.costUsd, tokens: r.tokens, model: r.model ?? agent.model,
+      };
     } catch (err) {
       out = { ...out, status: 'crashed', exitCode: null, durationMs: 0 };
       writeFileSync(logPath, `\n[${NAMES.bin}] driver threw: ${(err as Error).message}\n`, { flag: 'a' });

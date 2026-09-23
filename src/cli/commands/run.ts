@@ -1,5 +1,6 @@
 import * as p from '@clack/prompts';
-import { DriverIdSchema, type DriverId } from '@contract';
+import type { DriverId } from '@contract';
+import { formatAgentSpec, parseAgentSpecs, type AgentSpec } from '../../core/agentspec';
 import { loadConfig, parseDuration } from '../../core/config';
 import { fetchIssue, listOpenIssues, parseIssueRef, type IssueRef } from '../../core/issue';
 import { NAMES } from '../../core/names';
@@ -7,7 +8,7 @@ import { defaultDeps, runRace } from '../../core/race';
 import { detectRepo } from '../../core/repo';
 import { newRunId } from '../../core/store';
 import { progressRenderer } from '../render/progress';
-import { DRIVER_NAME, STATUS_WORD, fmtClock, fmtCost, paint, DRIVER_HEX } from '../render/style';
+import { DRIVER_NAME, STATUS_WORD, dim, fmtClock, fmtCost, paint, DRIVER_HEX } from '../render/style';
 import { doctorReport } from './doctor';
 
 export interface RunOpts {
@@ -18,16 +19,23 @@ export async function runCommand(issueArg: string | undefined, opts: RunOpts): P
   p.intro(`${NAMES.brand} run`);
   const repo = await detectRepo(process.cwd());
   const config = loadConfig(repo.root);
-  const agents: DriverId[] = (opts.agents ? opts.agents.split(',').map((s) => s.trim()) : config.agents).map((s) =>
-    DriverIdSchema.parse(s),
-  );
+  let agents: AgentSpec[];
+  try {
+    agents = parseAgentSpecs(opts.agents ?? config.agents);
+  } catch (e) {
+    // A bad --agents value is user input, not a crash: say so and stop.
+    p.log.error((e as Error).message);
+    p.cancel('Nothing to race.');
+    process.exit(1);
+  }
+  const drivers: DriverId[] = agents.map((a) => a.driver);
   const caps = {
     budgetUsd: opts.budget ? Number(opts.budget) : config.budget_usd,
     timeoutMs: parseDuration(opts.timeout ?? config.timeout),
     maxTurns: config.max_turns ?? null,
   };
 
-  const doc = await doctorReport(agents);
+  const doc = await doctorReport(drivers);
   for (const l of doc) if (!l.ok) p.log.error(`${l.name}: ${l.detail}`);
   if (doc.some((l) => !l.ok)) {
     p.cancel('Preflight failed.');
@@ -58,7 +66,7 @@ export async function runCommand(issueArg: string | undefined, opts: RunOpts): P
   const runId = newRunId();
   p.log.info(
     `#${issue.info.number} ${issue.info.title}\n` +
-      `agents: ${agents.join(', ')} · budget $${caps.budgetUsd} · ` +
+      `agents: ${agents.map(formatAgentSpec).join(', ')} · budget $${caps.budgetUsd} · ` +
       `timeout ${opts.timeout ?? config.timeout} · run ${runId}`,
   );
 
@@ -74,9 +82,10 @@ export async function runCommand(issueArg: string | undefined, opts: RunOpts): P
   console.log('');
   for (const a of rec.agents) {
     const name = paint(DRIVER_HEX[a.driver], DRIVER_NAME[a.driver].padEnd(12));
+    const model = a.model ? dim(` (${a.model})`) : '';
     console.log(
       `  ${name} ${STATUS_WORD[a.status].padEnd(11)} ${fmtCost(a.costUsd).padStart(6)}  ` +
-        `${fmtClock(a.durationMs).padStart(5)}  ${a.prUrl ?? 'no PR'}`,
+        `${fmtClock(a.durationMs).padStart(5)}  ${a.prUrl ?? 'no PR'}${model}`,
     );
   }
   console.log(`\n  Run record  ${NAMES.stateDir}/runs/${runId}.json\n`);

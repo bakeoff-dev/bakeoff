@@ -20,6 +20,12 @@ describe('claude parser', () => {
     expect(result!.isError).toBe(false);
   });
 
+  it('surfaces the model the CLI actually ran', () => {
+    const models = lines.map((l) => parseClaudeLine(l).model).filter(Boolean);
+    expect(models.length).toBeGreaterThan(0);
+    expect(models[0]).toBe('claude-opus-5');
+  });
+
   it('reports usage with the model the message came from', () => {
     const usage = lines.flatMap((l) => parseClaudeLine(l).events).filter((e) => e.kind === 'usage');
     const first = usage[0];
@@ -54,6 +60,25 @@ describe('claudeArgs', () => {
       '--permission-mode', 'acceptEdits', '--max-budget-usd', '2.5', '--add-dir', '/w',
     ]);
     expect(claudeArgs({ caps: { budgetUsd: 1, timeoutMs: 1, maxTurns: null }, worktree: '/w' }, { bare: true })).toContain('--bare');
+  });
+
+  it('passes --model when one is requested', () => {
+    const args = claudeArgs(
+      { caps: { budgetUsd: 1, timeoutMs: 1, maxTurns: null }, worktree: '/w', model: 'claude-sonnet-5' },
+      { bare: false },
+    );
+    expect(args).toContain('--model');
+    expect(args[args.indexOf('--model') + 1]).toBe('claude-sonnet-5');
+  });
+
+  it('passes no model flag when none is requested, leaving the CLI default alone', () => {
+    for (const model of [null, undefined]) {
+      const args = claudeArgs(
+        { caps: { budgetUsd: 1, timeoutMs: 1, maxTurns: null }, worktree: '/w', model },
+        { bare: false },
+      );
+      expect(args).not.toContain('--model');
+    }
   });
 
   it('never passes --max-turns, which 2.1.259 does not accept', () => {

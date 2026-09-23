@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { DriverId } from '@contract';
+import type { AgentSpec } from '../../src/core/agentspec';
 import { defaultDeps, runRace, type RaceInput } from '../../src/core/race';
 import { readEvents, readRun } from '../../src/core/store';
 import { makeRepo } from '../helpers/repo';
@@ -14,7 +14,11 @@ const TOKENS = { input: 10, output: 5, cacheRead: 0, cacheWrite: 0 };
 
 const MULTILINE_ACTION = 'Bash git commit -q -m "$(cat <<\'EOF\'\r\nAdd list command with';
 
-function fakeDriver(id: 'claude' | 'codex', behaviour: 'ok' | 'crash' | 'throw'): Driver {
+function fakeDriver(
+  id: 'claude' | 'codex',
+  behaviour: 'ok' | 'crash' | 'throw',
+  reportedModel: string | null = null,
+): Driver {
   return {
     id,
     displayName: id,
@@ -37,6 +41,7 @@ function fakeDriver(id: 'claude' | 'codex', behaviour: 'ok' | 'crash' | 'throw')
         costUsd: 0.01,
         durationMs: 50,
         raw: null,
+        model: reportedModel,
       };
     },
   };
@@ -56,7 +61,12 @@ let seq = 0;
 async function setup(
   behaviours: { claude: 'ok' | 'crash' | 'throw'; codex: 'ok' | 'crash' | 'throw' },
   spy?: (cmd: string, args: string[], phase: 'enter' | 'exit') => void,
+  opts: { specs?: AgentSpec[]; reportedModel?: string | null } = {},
 ) {
+  const specs: AgentSpec[] = opts.specs ?? [
+    { driver: 'claude', model: null },
+    { driver: 'codex', model: null },
+  ];
   // worktree paths are keyed by run id, so each test needs its own
   const runId = `20260902-t${(seq += 1)}`;
   const repo = await makeRepo({ 'a.txt': 'broken', 'bakeoff.yml': 'test: true\n' });
@@ -86,11 +96,14 @@ async function setup(
       comments: [],
     },
     config,
-    agents: ['claude', 'codex'] as DriverId[],
+    agents: specs,
     caps: { budgetUsd: 1, timeoutMs: 60_000, maxTurns: null },
     runId,
   };
-  const drivers = { claude: fakeDriver('claude', behaviours.claude), codex: fakeDriver('codex', behaviours.codex) };
+  const drivers = {
+    claude: fakeDriver('claude', behaviours.claude, opts.reportedModel ?? null),
+    codex: fakeDriver('codex', behaviours.codex),
+  };
   const rec = await runRace(input, {
     ...defaultDeps(),
     exec: routed,
@@ -165,6 +178,44 @@ describe('runRace', () => {
     expect(actions.some((a) => a.includes('Add list command with'))).toBe(true);
     // a raw newline here becomes an extra terminal row the live view cannot account for
     for (const a of actions) expect(a).not.toMatch(/[\r\n\t]/);
+  });
+
+  it('records the requested model and announces it on agent.started', async () => {
+    const { repo, rec } = await setup({ claude: 'ok', codex: 'crash' }, undefined, {
+      specs: [
+        { driver: 'claude', model: 'claude-sonnet-5' },
+        { driver: 'codex', model: null },
+      ],
+    });
+    expect(rec.agents.find((a) => a.driver === 'claude')?.model).toBe('claude-sonnet-5');
+    expect(rec.agents.find((a) => a.driver === 'codex')?.model).toBeNull();
+
+    const started = readEvents(repo.dir, rec.id).filter((e) => e.type === 'agent.started');
+    const claudeStart = started.find((e) => e.type === 'agent.started' && e.driver === 'claude');
+    expect(claudeStart?.type === 'agent.started' && claudeStart.model).toBe('claude-sonnet-5');
+  });
+
+  it('prefers the model the CLI reports over the one we asked for', async () => {
+    // the CLI is the authority on what actually ran: an alias or a fallback resolves here
+    const { rec } = await setup({ claude: 'ok', codex: 'crash' }, undefined, {
+      specs: [
+        { driver: 'claude', model: 'sonnet' },
+        { driver: 'codex', model: null },
+      ],
+      reportedModel: 'claude-sonnet-5',
+    });
+    expect(rec.agents.find((a) => a.driver === 'claude')?.model).toBe('claude-sonnet-5');
+  });
+
+  it('falls back to the requested model when the CLI reports none', async () => {
+    const { rec } = await setup({ claude: 'ok', codex: 'crash' }, undefined, {
+      specs: [
+        { driver: 'claude', model: 'claude-opus-5' },
+        { driver: 'codex', model: null },
+      ],
+      reportedModel: null,
+    });
+    expect(rec.agents.find((a) => a.driver === 'claude')?.model).toBe('claude-opus-5');
   });
 
   it('survives a driver that throws, recording it as crashed', async () => {

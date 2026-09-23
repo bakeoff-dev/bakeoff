@@ -24,7 +24,10 @@ const ACTION_MAX = 100;
  * The budget cap is enforced twice: by the CLI via `--max-budget-usd` and by our
  * own meter in `runProcess`, which kills the process group when it trips.
  */
-export function claudeArgs(i: { caps: Caps; worktree: string }, opts: { bare: boolean }): string[] {
+export function claudeArgs(
+  i: { caps: Caps; worktree: string; model?: string | null },
+  opts: { bare: boolean },
+): string[] {
   const args = [
     '-p',
     '--output-format', 'stream-json',
@@ -33,6 +36,8 @@ export function claudeArgs(i: { caps: Caps; worktree: string }, opts: { bare: bo
     '--max-budget-usd', String(i.caps.budgetUsd),
     '--add-dir', i.worktree,
   ];
+  // No model requested means the CLI's own default: pass no flag at all.
+  if (i.model) args.push('--model', i.model);
   if (opts.bare) args.push('--bare');
   return args;
 }
@@ -74,7 +79,13 @@ function actionText(name: string, input: Record<string, unknown>): string {
 }
 
 /** Every field access is guarded: the envelope is untrusted and its shape churns between versions. */
-export interface ParsedLine { events: AgentEvent[]; result: ClaudeResult | null; messageId?: string | null }
+export interface ParsedLine {
+  events: AgentEvent[];
+  result: ClaudeResult | null;
+  messageId?: string | null;
+  /** Model this assistant message ran on, straight from the CLI's own report. */
+  model?: string;
+}
 
 /** Pure per-line parse. Usage here is per-message, not per-stream: see `createClaudeStream`. */
 export function parseClaudeLine(line: string): ParsedLine {
@@ -106,7 +117,9 @@ export function parseClaudeLine(line: string): ParsedLine {
       });
     }
     const messageId = str(msg.id);
-    return messageId ? { events, result: null, messageId } : { events, result: null };
+    const model = str(msg.model);
+    const extra = { ...(messageId ? { messageId } : {}), ...(model ? { model } : {}) };
+    return { events, result: null, ...extra };
   }
 
   if (o.type === 'result') {
@@ -205,6 +218,7 @@ export const claudeDriver: Driver = {
     const bare = process.env.BAKEOFF_BARE === '1' && !!process.env.ANTHROPIC_API_KEY;
     let tokens: TokenUsage | null = null;
     let result: ClaudeResult | null = null;
+    let observedModel: string | null = null;
     const stream = createClaudeStream();
     const r = await runProcess({
       cmd: 'claude',
@@ -217,6 +231,7 @@ export const claudeDriver: Driver = {
       logPath: input.logPath,
       onStdoutLine: (line) => {
         const parsed = stream.push(line);
+        if (parsed.model) observedModel = parsed.model;
         for (const e of parsed.events) {
           if (e.kind === 'usage') {
             tokens = addTokens(tokens, e.tokens);
@@ -238,6 +253,7 @@ export const claudeDriver: Driver = {
       costUsd: res?.costUsd ?? input.meter.costUsd,
       durationMs: r.durationMs,
       raw: res,
+      model: observedModel,
     };
   },
 };

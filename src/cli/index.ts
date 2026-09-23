@@ -24,7 +24,7 @@ program
 program
   .command('run [issue]')
   .description('Race agents on an issue (owner/repo#123, #123, or URL)')
-  .option('-a, --agents <list>', 'comma-separated drivers')
+  .option('-a, --agents <list>', 'comma-separated agents, each "driver" or "driver:model"')
   .option('-b, --budget <usd>', 'per-agent budget in USD')
   .option('-t, --timeout <duration>', 'per-agent wall clock, e.g. 20m')
   .option('-w, --watch', 'open the live scoreboard in a browser')
