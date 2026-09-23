@@ -2,7 +2,7 @@
 
 > Race coding agents on your real issues. Merge the winner.
 
-Status: approved design, 2026-09-02. Source documents: `docs/planning/pr-arena-v1-spec.md` (product spec) and the competitive sweep (`docs/planning/compass_artifact_*.md`). This file is the build contract; where it disagrees with the product spec, this file wins.
+Status: approved design, 2026-09-02. This file is the build contract: where anything else disagrees with it, this file wins.
 
 ## 0. Decisions already made (do not relitigate)
 
@@ -341,9 +341,9 @@ vitest. `test/` mirrors `src/`.
 - Budget meter tested with a fake driver emitting usage events until the cap trips.
 - End-to-end is manual against a scratch GitHub repo (`bakeoff-dev/scratch`), documented in PLAN.md.
 
-## 12. Cut order (from product spec section 8)
+## 12. Cut order
 
-Cannot cut: two drivers, scorer, run record, HTML scoreboard, share PNG. Cut in this order if day 10 arrives short: LLM judge, `merge`, `replay`, ladder screen (keep `ladder.json` + terminal table), race view (ship scoreboard-only UI), OpenCode driver, hidden tests, CI polling.
+Cannot cut: two drivers, scorer, run record, HTML scoreboard, share PNG. Cut in this order if v1 has to shrink: LLM judge, `merge`, `replay`, ladder screen (keep `ladder.json` + terminal table), race view (ship scoreboard-only UI), OpenCode driver, hidden tests, CI polling.
 
 ## 13. Known risks
 
