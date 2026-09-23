@@ -1,5 +1,6 @@
+import { readRaceEvent } from './migrate';
 import {
-  RaceEventSchema, type AgentStatus, type Baseline, type Caps, type DriverId, type IssueInfo,
+  type AgentStatus, type Baseline, type Caps, type DriverId, type IssueInfo,
   type RaceEvent, type RepoInfo, type RunRecord, type ScoreBreakdown, type TokenUsage,
 } from './schema';
 
@@ -48,5 +49,5 @@ export function reduceEvents(events: RaceEvent[], start: RaceState = initialStat
   return events.reduce(applyEvent, start);
 }
 export function parseEventLines(text: string): RaceEvent[] {
-  return text.split('\n').filter((l) => l.trim().length > 0).map((l) => RaceEventSchema.parse(JSON.parse(l)));
+  return text.split('\n').filter((l) => l.trim().length > 0).map((l) => readRaceEvent(JSON.parse(l)));
 }

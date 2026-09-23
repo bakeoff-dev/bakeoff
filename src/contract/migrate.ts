@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
-  AgentResultSchema, LadderEntrySchema, LadderSchema, RunRecordSchema, SCHEMA_VERSION,
-  competitorKey, type Ladder, type RunRecord,
+  AgentResultSchema, LadderEntrySchema, LadderSchema, RaceEventSchema, RunRecordSchema, SCHEMA_VERSION,
+  competitorKey, type Ladder, type RaceEvent, type RunRecord,
 } from './schema';
 
 /**
@@ -60,4 +60,25 @@ export function readLadderJson(raw: unknown): Ladder {
   }
   if (version === undefined) return LadderSchema.parse(raw);
   throw unknownVersion('ladder', raw);
+}
+
+/**
+ * Parse one event off an events.jsonl line, migrating version-1 shapes forward.
+ *
+ * Event logs are append-only and committed alongside the runs, so old lines keep the
+ * shape they were written with: `agent.started` predates models, and `race.finished`
+ * embeds a whole record that needs the same migration a run.json does.
+ */
+export function readRaceEvent(raw: unknown): RaceEvent {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  if (o !== null) {
+    // v1 could not say which model ran, and null is exactly that statement.
+    if (o.type === 'agent.started' && o.model === undefined) {
+      return RaceEventSchema.parse({ ...o, model: null });
+    }
+    if (o.type === 'race.finished') {
+      return RaceEventSchema.parse({ ...o, record: readRunJson(o.record) });
+    }
+  }
+  return RaceEventSchema.parse(raw);
 }

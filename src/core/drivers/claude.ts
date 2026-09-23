@@ -10,6 +10,8 @@ export interface ClaudeResult {
   tokens: TokenUsage | null;
   isError: boolean;
   durationMs: number | null;
+  /** Model the result envelope attributes most of the output to; null if it says nothing. */
+  model: string | null;
 }
 
 const REQUIRED_FLAGS = ['--print', '--output-format', '--max-budget-usd', '--permission-mode', '--add-dir'];
@@ -78,6 +80,25 @@ function actionText(name: string, input: Record<string, unknown>): string {
   return `${name} ${target}`.trim().slice(0, ACTION_MAX);
 }
 
+/**
+ * The model the run should be credited to, from the result envelope's per-model
+ * breakdown: whichever produced the most output. `canonicalModel` is preferred over
+ * the key so a context-window suffix (`claude-opus-5[1m]`) does not split the ladder.
+ */
+function dominantModel(modelUsage: unknown): string | null {
+  let best: string | null = null;
+  let bestOutput = -1;
+  for (const [key, value] of Object.entries(obj(modelUsage))) {
+    const v = obj(value);
+    const output = num(v.outputTokens);
+    if (output > bestOutput) {
+      bestOutput = output;
+      best = str(v.canonicalModel) || key;
+    }
+  }
+  return best;
+}
+
 /** Every field access is guarded: the envelope is untrusted and its shape churns between versions. */
 export interface ParsedLine {
   events: AgentEvent[];
@@ -117,7 +138,10 @@ export function parseClaudeLine(line: string): ParsedLine {
       });
     }
     const messageId = str(msg.id);
-    const model = str(msg.model);
+    // A Task subagent carries a parent id and may run on a different model. Its usage
+    // still costs money and is still metered above, but it must not rename the race.
+    const topLevel = o.parent_tool_use_id === undefined || o.parent_tool_use_id === null;
+    const model = topLevel ? str(msg.model) : '';
     const extra = { ...(messageId ? { messageId } : {}), ...(model ? { model } : {}) };
     return { events, result: null, ...extra };
   }
@@ -132,6 +156,7 @@ export function parseClaudeLine(line: string): ParsedLine {
         tokens: usageFrom(o.usage),
         isError: o.is_error === true,
         durationMs: typeof o.duration_ms === 'number' ? o.duration_ms : null,
+        model: dominantModel(o.modelUsage),
       },
     };
   }
@@ -164,11 +189,15 @@ export function probeAuthOk(stdout: string): boolean {
  * 20260923-mosj race billed 28 lines for 14 messages and overestimated by about 18%.
  * Counting each message id once turns those repeats back into per-message deltas.
  */
-export function createClaudeStream(): { push(line: string): ParsedLine } {
+export function createClaudeStream(): { push(line: string): ParsedLine; model(): string | null } {
   const metered = new Set<string>();
+  let observed: string | null = null;
+  let fromResult: string | null = null;
   return {
     push(line: string): ParsedLine {
       const parsed = parseClaudeLine(line);
+      if (parsed.model) observed = parsed.model;
+      if (parsed.result?.model) fromResult = parsed.result.model;
       const id = parsed.messageId;
       if (!id) return parsed;
       if (metered.has(id)) {
@@ -176,6 +205,13 @@ export function createClaudeStream(): { push(line: string): ParsedLine } {
       }
       metered.add(id);
       return parsed;
+    },
+    /**
+     * The result envelope is authoritative when the run reached one; a timeout or
+     * crash never writes it, so fall back to the last top-level message.
+     */
+    model(): string | null {
+      return fromResult ?? observed;
     },
   };
 }
@@ -218,7 +254,6 @@ export const claudeDriver: Driver = {
     const bare = process.env.BAKEOFF_BARE === '1' && !!process.env.ANTHROPIC_API_KEY;
     let tokens: TokenUsage | null = null;
     let result: ClaudeResult | null = null;
-    let observedModel: string | null = null;
     const stream = createClaudeStream();
     const r = await runProcess({
       cmd: 'claude',
@@ -231,7 +266,6 @@ export const claudeDriver: Driver = {
       logPath: input.logPath,
       onStdoutLine: (line) => {
         const parsed = stream.push(line);
-        if (parsed.model) observedModel = parsed.model;
         for (const e of parsed.events) {
           if (e.kind === 'usage') {
             tokens = addTokens(tokens, e.tokens);
@@ -253,7 +287,7 @@ export const claudeDriver: Driver = {
       costUsd: res?.costUsd ?? input.meter.costUsd,
       durationMs: r.durationMs,
       raw: res,
-      model: observedModel,
+      model: stream.model(),
     };
   },
 };
