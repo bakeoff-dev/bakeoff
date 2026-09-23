@@ -47,8 +47,8 @@ describe('the final table', () => {
     expect(line).toContain('claude-opus-5');
     expect(line).toContain('$1.42');
     expect(line).toContain('6:52');
-    expect(line).toContain('+18 -4');
-    expect(line).toContain('2 files');
+    expect(line).toContain('+24 -4');
+    expect(line).toContain('3 files');
     expect(line).toContain('PR #12');
   });
 

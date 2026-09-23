@@ -55,6 +55,14 @@ export const AgentResultSchema = z.object({
    */
   testFilesTouched: z.array(z.string()),
   testLinesChanged: z.number(),
+  /**
+   * The documentation share, kept out of diff discipline for the same reason tests
+   * are: updating the docs alongside a fix is what a good change looks like, not
+   * sprawl. es-toolkit's own upstream fixes edit four locales; charging for that
+   * rewards an agent that skips it.
+   */
+  docFilesTouched: z.array(z.string()),
+  docLinesChanged: z.number(),
   prUrl: z.string().nullable(),
   prNumber: z.number().nullable(),
   score: ScoreBreakdownSchema.nullable(),

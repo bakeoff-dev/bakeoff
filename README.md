@@ -92,8 +92,15 @@ supplies the harness, not the opinion.
 | Typecheck | 7.5, or 15 if no lint is configured | Exit 0 of your `typecheck` command. |
 | Lint | 7.5, or 15 if no typecheck is configured | Exit 0 of your `lint` command. |
 | CI | 10 | `gh pr checks` polled until every check settles. All green or nothing. |
-| Diff discipline | 10 | 6 points scaled against the median diff size, 4 for staying inside the file set most agents touched. Counts the product change only: test files are left out of both halves. A diff of zero scores zero. |
+| Diff discipline | 10 | 6 points scaled against the median diff size, 4 for staying inside the file set most agents touched. Counts the product change only: tests and documentation are left out of both halves. A diff of zero scores zero. |
 | Tamper | −25 | Any flag below, subtracted once. |
+
+Tests and docs are left out of that measurement on purpose. Both are part of doing the
+job properly, and an agent that writes the test proving its fix, or updates the docs the
+change makes stale, should not read as a bigger, sloppier diff than one that skips them.
+In a pilot race on `es-toolkit#2068` an agent scored 2.2 out of 10 for updating the docs
+in four languages -- which is exactly what that project's own upstream fix for the same
+issue did.
 
 ### Write one hidden test per issue
 

@@ -51,7 +51,7 @@ export async function scoreAgent(
   baselineGreen: boolean | null = null,
   /** May be a promise: it is only awaited once the local checks are done, so both run at once. */
   ci: ScoreComponent | null | Promise<ScoreComponent | null> = null,
-): Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved' | 'testFilesTouched' | 'testLinesChanged'>> {
+): Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved' | 'testFilesTouched' | 'testLinesChanged' | 'docFilesTouched' | 'docLinesChanged'>> {
   const cfg: Config = ctx.config;
   const testPaths = cfg.test_paths ?? (await defaultTestPaths(ctx.worktree, ctx.baseSha));
   const stats = await diffStats(ctx.worktree, ctx.baseSha, testPaths);
@@ -100,6 +100,8 @@ export async function scoreAgent(
     linesRemoved: stats.removed,
     testFilesTouched: stats.testFiles,
     testLinesChanged: stats.testLines,
+    docFilesTouched: stats.docFiles,
+    docLinesChanged: stats.docLines,
   };
 }
 
@@ -112,9 +114,11 @@ export function finalizeScores(agents: AgentResult[], _configured: Configured): 
   const diff = diffDiscipline(
     finishers.map((a) => ({
       driver: a.driver,
-      // The product change: tests are the evidence, not the cost.
-      files: a.filesTouched.filter((f) => !a.testFilesTouched.includes(f)),
-      lines: Math.max(0, a.linesAdded + a.linesRemoved - a.testLinesChanged),
+      // The product change: tests are the evidence and docs are part of the job.
+      files: a.filesTouched.filter(
+        (f) => !a.testFilesTouched.includes(f) && !a.docFilesTouched.includes(f),
+      ),
+      lines: Math.max(0, a.linesAdded + a.linesRemoved - a.testLinesChanged - a.docLinesChanged),
     })),
   );
   const withDiff = agents.map((a) => {

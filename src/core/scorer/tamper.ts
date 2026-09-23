@@ -143,3 +143,11 @@ export async function tamperFlags(o: TamperInput, run: Exec = exec): Promise<Tam
   }
   return flags;
 }
+
+/** Prose, not product: markdown and friends anywhere, plus anything under `docs/`. */
+const DOC_FILE_NAME = /\.(md|mdx|rst)$/i;
+
+export function isDocFile(path: string): boolean {
+  if (DOC_FILE_NAME.test(path)) return true;
+  return path === 'docs' || path.startsWith('docs/') || path.includes('/docs/');
+}
