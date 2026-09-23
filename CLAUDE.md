@@ -69,6 +69,8 @@ test/           vitest
 - `defaultDeps()` in `race.ts` wires the real baseline, scorer, finalizer and ladder. A race scores itself; nothing else has to ask.
 - Scoring is guarded per agent. If it throws, the agent keeps its status and PR, scores null, ranks nowhere, and the reason lands in its log. The race always reaches `race.finished` and always writes a final `run.json`.
 - CI polls from the moment an agent's PR exists, alongside that agent's local checks. With files under `.github/workflows/`, "no checks reported" means not yet and keeps polling to `ci_timeout`; without them it means never and scores n/a at once.
+- Diff discipline counts the product change only: test files are excluded from both the size and the scope term, so writing the test that proves the fix is never charged as diff sprawl.
+- A race with no hidden tests and a green baseline sets `noAcceptanceTest` on the record. The sentence lives once in `names.ts` as `NO_ACCEPTANCE_TEST` and is shown in the run preflight and above the final table.
 - `setup:` runs in the baseline worktree and in every agent worktree before that agent launches. A failure crashes the agent before it starts. So does leaving a tracked file modified -- lockfile churn from a non-frozen install would otherwise land in every agent's diff and be scored as their work.
 
 ## Commands

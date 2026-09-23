@@ -11,8 +11,12 @@ import {
  * schema bump would otherwise make every past race unreadable and reset the ladder.
  * These are frozen copies: never widen them to accept newer fields.
  */
-const AgentResultV1Schema = AgentResultSchema.omit({ model: true, requestedModel: true });
-const RunRecordV1Schema = RunRecordSchema.omit({ schemaVersion: true, agents: true, baseline: true }).extend({
+const AgentResultV1Schema = AgentResultSchema.omit({
+  model: true, requestedModel: true, testFilesTouched: true, testLinesChanged: true,
+});
+const RunRecordV1Schema = RunRecordSchema.omit({
+  schemaVersion: true, agents: true, baseline: true, noAcceptanceTest: true,
+}).extend({
   schemaVersion: z.literal(1),
   agents: z.array(AgentResultV1Schema),
   baseline: BaselineSchema.omit({ setupError: true }),
@@ -40,17 +44,26 @@ function unknownVersion(what: string, raw: unknown): Error {
 function fillAdditive(raw: unknown): unknown {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
   if (o === null) return raw;
+  // A record written before we could tell is not evidence that we could: default to
+  // false rather than warning about races that may well have had an acceptance test.
+  const noAcceptanceTest = o.noAcceptanceTest === undefined ? false : o.noAcceptanceTest;
   const baseline =
     o.baseline && typeof o.baseline === 'object'
       ? { setupError: null, ...(o.baseline as Record<string, unknown>) }
       : o.baseline;
-  if (!Array.isArray(o.agents)) return { ...o, baseline };
+  if (!Array.isArray(o.agents)) return { ...o, baseline, noAcceptanceTest };
   return {
     ...o,
     baseline,
+    noAcceptanceTest,
     agents: o.agents.map((a) => {
       const agent = a && typeof a === 'object' ? (a as Record<string, unknown>) : {};
-      return agent.requestedModel === undefined ? { ...agent, requestedModel: null } : agent;
+      return {
+        requestedModel: null,
+        testFilesTouched: [],
+        testLinesChanged: 0,
+        ...agent,
+      };
     }),
   };
 }
@@ -66,7 +79,10 @@ export function readRunJson(raw: unknown): RunRecord {
       ...v1,
       schemaVersion: SCHEMA_VERSION,
       baseline: { ...v1.baseline, setupError: null },
-      agents: v1.agents.map((a) => ({ ...a, model: null, requestedModel: null })),
+      noAcceptanceTest: false,
+      agents: v1.agents.map((a) => ({
+        ...a, model: null, requestedModel: null, testFilesTouched: [], testLinesChanged: 0,
+      })),
     };
   }
   if (version === undefined) return RunRecordSchema.parse(fillAdditive(raw));

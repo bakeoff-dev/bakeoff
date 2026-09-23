@@ -17,8 +17,19 @@ const baseline = (over: Partial<Baseline> = {}): Baseline => ({
 describe('preflight warnings', () => {
   const root = mkdtempSync(join(tmpdir(), 'bakeoff-pre-'));
 
-  it('says nothing when there is nothing to say', () => {
-    expect(preflightWarnings(config(), baseline(), root)).toEqual([]);
+  it('warns that nothing checks the issue when the baseline is green and no hidden tests exist', () => {
+    const w = preflightWarnings(config(), baseline(), root);
+    expect(w).toEqual([
+      'No test checks this issue. Scores show nothing broke, not that the issue was solved.',
+    ]);
+  });
+
+  it('says nothing when a hidden test will check the issue', () => {
+    const dir = join(root, 'has-hidden');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'h.test.ts'), 'x');
+    const cfg = config({ hidden_tests: { source: dir, dest: 'd', command: 'c' } });
+    expect(preflightWarnings(cfg, baseline(), root)).toEqual([]);
   });
 
   it('warns when setup failed', () => {
@@ -33,6 +44,12 @@ describe('preflight warnings', () => {
 
   it('does not warn when the baseline never ran tests', () => {
     expect(preflightWarnings(config(), baseline({ testsGreen: null }), root)).toEqual([]);
+  });
+
+  it('does not claim the issue is unchecked when the baseline is red', () => {
+    // a red baseline means the visible suite is the acceptance test
+    const w = preflightWarnings(config(), baseline({ testsGreen: false }), root);
+    expect(w.join(' ')).not.toContain('No test checks this issue');
   });
 
   it('warns when hidden tests are configured with nothing behind them', () => {

@@ -56,6 +56,10 @@
       ],
       "linesAdded": 18,
       "linesRemoved": 4,
+      "testFilesTouched": [
+        "paginate.test.ts"
+      ],
+      "testLinesChanged": 8,
       "prUrl": "https://github.com/bakeoff-dev/scratch/pull/12",
       "prNumber": 12,
       "score": {
@@ -93,8 +97,8 @@
           {
             "id": "diff",
             "max": 10,
-            "awarded": 9.7,
-            "detail": "22 lines, 2 files, 2 in consensus"
+            "awarded": 10,
+            "detail": "14 lines, 2 files, 2 in consensus"
           },
           {
             "id": "judge",
@@ -105,7 +109,7 @@
         ],
         "tamperFlags": [],
         "tamperPenalty": 0,
-        "total": 74.7,
+        "total": 75,
         "maxPossible": 75
       },
       "rank": 1,
@@ -133,6 +137,10 @@
       ],
       "linesAdded": 11,
       "linesRemoved": 9,
+      "testFilesTouched": [
+        "paginate.test.ts"
+      ],
+      "testLinesChanged": 5,
       "prUrl": "https://github.com/bakeoff-dev/scratch/pull/13",
       "prNumber": 13,
       "score": {
@@ -170,8 +178,8 @@
           {
             "id": "diff",
             "max": 10,
-            "awarded": 8.7,
-            "detail": "20 lines, 3 files, 2 in consensus"
+            "awarded": 8.5,
+            "detail": "15 lines, 3 files, 2 in consensus"
           },
           {
             "id": "judge",
@@ -188,7 +196,7 @@
           }
         ],
         "tamperPenalty": -25,
-        "total": 48.7,
+        "total": 48.5,
         "maxPossible": 75
       },
       "rank": 2,
@@ -212,6 +220,8 @@
       "filesTouched": [],
       "linesAdded": 0,
       "linesRemoved": 0,
+      "testFilesTouched": [],
+      "testLinesChanged": 0,
       "prUrl": null,
       "prNumber": null,
       "score": null,
@@ -219,5 +229,6 @@
       "logTail": "reading src/paginate.ts\nreading src/index.ts\n[bakeoff] timeout after 20m, SIGTERM sent to process group"
     }
   ],
-  "winner": "claude"
+  "winner": "claude",
+  "noAcceptanceTest": false
 }

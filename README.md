@@ -90,8 +90,25 @@ supplies the harness, not the opinion.
 | Typecheck | 7.5, or 15 if no lint is configured | Exit 0 of your `typecheck` command. |
 | Lint | 7.5, or 15 if no typecheck is configured | Exit 0 of your `lint` command. |
 | CI | 10 | `gh pr checks` polled until every check settles. All green or nothing. |
-| Diff discipline | 10 | 6 points scaled against the median diff size, 4 for staying inside the file set most agents touched. A diff of zero scores zero. |
+| Diff discipline | 10 | 6 points scaled against the median diff size, 4 for staying inside the file set most agents touched. Counts the product change only: test files are left out of both halves. A diff of zero scores zero. |
 | Tamper | −25 | Any flag below, subtracted once. |
+
+### Write one hidden test per issue
+
+Put a test in `.bakeoff/hidden` that fails on the base commit and passes once the issue is
+fixed. It is copied into each agent's worktree *after* that agent exits, so nobody can read
+it or code against it. It is the only component that measures whether the issue was solved.
+
+Without one, and with a green suite at the base commit, every check can only show that
+nothing broke. Bakeoff says so, in the preflight and above the final table:
+
+> No test checks this issue. Scores show nothing broke, not that the issue was solved.
+
+That warning is there because of a real race. The issue asked for a `--tail` flag on a list
+command. One agent built the command with thirteen tests; the other added an unrelated
+`tail()` helper to a different file and never touched the list command at all. The suite was
+green before and after for both, so visible tests separated nothing — and the smaller diff
+won, 66 to 63.4. One hidden test calling `--tail` would have decided it in a second.
 
 Restoring the test paths before the test run is the point: an agent that "fixed" the suite
 by editing what it asserts gets measured against the assertions you wrote. Detection reads

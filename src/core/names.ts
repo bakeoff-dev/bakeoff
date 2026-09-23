@@ -26,6 +26,13 @@ export function branchName(issue: number, driver: string, runId: string): string
 }
 
 /** The throwaway branch the baseline worktree sits on. */
+/**
+ * Said wherever a score is shown for a race that could not check the issue itself.
+ * Without it the numbers read as a verdict on the work rather than on the repo.
+ */
+export const NO_ACCEPTANCE_TEST =
+  'No test checks this issue. Scores show nothing broke, not that the issue was solved.';
+
 export function baselineBranch(runId: string): string {
   return `${NAMES.branchPrefix}-baseline-${runId}`;
 }

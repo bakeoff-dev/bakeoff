@@ -1,26 +1,52 @@
 import type { DriverId, ScoreComponent } from '@contract';
 import { exec, must, type Exec } from '../exec';
+import { TEST_FILE_NAME } from './checks';
 
-export interface DiffStats { files: string[]; added: number; removed: number }
+export interface DiffStats {
+  files: string[];
+  added: number;
+  removed: number;
+  /** The test share of the same diff, so discipline can judge the product change alone. */
+  testFiles: string[];
+  testLines: number;
+}
+
+/** A test by the shared name rule, or by sitting under one of the run's test paths. */
+export function isTestFile(file: string, testPaths: readonly string[]): boolean {
+  if (TEST_FILE_NAME.test(file)) return true;
+  return testPaths.some((p) => file === p || file.startsWith(`${p}/`));
+}
 
 /**
  * What the agent committed, `base..HEAD`. Bakeoff commits any leftovers before scoring, so
  * HEAD is the whole of the agent's work; the working tree at this point also holds the
  * scorer's own restored test files and copied hidden tests, which must not be counted.
  */
-export async function diffStats(worktree: string, baseSha: string, run: Exec = exec): Promise<DiffStats> {
+export async function diffStats(
+  worktree: string,
+  baseSha: string,
+  testPaths: readonly string[] = [],
+  run: Exec = exec,
+): Promise<DiffStats> {
   const files = new Set<string>();
+  const testFiles = new Set<string>();
   let added = 0;
   let removed = 0;
+  let testLines = 0;
   const numstat = await must('git', ['diff', '--numstat', `${baseSha}..HEAD`], { cwd: worktree }, run);
   for (const line of numstat.split('\n').filter(Boolean)) {
     const [a, r, f] = line.split('\t');
     if (!f) continue;
     files.add(f);
+    const lines = (a === '-' ? 0 : Number(a)) + (r === '-' ? 0 : Number(r));
     added += a === '-' ? 0 : Number(a);
     removed += r === '-' ? 0 : Number(r);
+    if (isTestFile(f, testPaths)) {
+      testFiles.add(f);
+      testLines += lines;
+    }
   }
-  return { files: [...files], added, removed };
+  return { files: [...files], added, removed, testFiles: [...testFiles], testLines };
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -36,6 +62,10 @@ export interface Finisher { driver: DriverId; files: string[]; lines: number }
  * Size is 6 points scaled by the median diff size, scope is 4 points for staying inside
  * the consensus file set. A finisher that changed nothing scores 0, never a share of the
  * points for restraint.
+ *
+ * Both halves count the product change only. Race 20260923-fptp is why: an agent that
+ * built the feature with thirteen tests (+54) lost discipline to one that added six
+ * unrelated lines, so the rule charged it for the very tests that proved its work.
  */
 export function diffDiscipline(finishers: Finisher[]): Map<DriverId, ScoreComponent> {
   const out = new Map<DriverId, ScoreComponent>();

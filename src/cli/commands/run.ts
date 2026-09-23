@@ -4,7 +4,7 @@ import type { Baseline, DriverId } from '@contract';
 import { formatAgentSpec, parseAgentSpecs, type AgentSpec } from '../../core/agentspec';
 import { loadConfig, parseDuration, type Config } from '../../core/config';
 import { fetchIssue, listOpenIssues, parseIssueRef, type IssueRef } from '../../core/issue';
-import { NAMES } from '../../core/names';
+import { NAMES, NO_ACCEPTANCE_TEST } from '../../core/names';
 import { defaultDeps, runRace } from '../../core/race';
 import { computeBaseline } from '../../core/scorer/checks';
 import { newRunId, paths, readLadder } from '../../core/store';
@@ -37,6 +37,9 @@ export function preflightWarnings(
       'baseline tests already fail at the base commit. If the repo is broken, fix it first; ' +
         'if the issue is itself a failing test, this is expected and the agents are scored on fixing it',
     );
+  }
+  if (!config.hidden_tests && baseline.testsGreen === true) {
+    out.push(NO_ACCEPTANCE_TEST);
   }
   if (config.hidden_tests) {
     const dir = config.hidden_tests.source || paths(repoRoot).hiddenDir;

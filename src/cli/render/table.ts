@@ -1,6 +1,6 @@
 import type { AgentResult, Ladder, LadderEntry, RunRecord } from '@contract';
 import { competitorKey } from '@contract';
-import { NAMES } from '../../core/names';
+import { NAMES, NO_ACCEPTANCE_TEST } from '../../core/names';
 import { oneLine } from '../../core/text';
 import {
   DRIVER_HEX, DRIVER_NAME, SOFT_RED, STATUS_WORD, dim, displayWidth, fmtClock, fmtCost, paint,
@@ -121,6 +121,10 @@ export function finalTable(input: FinalTableInput): string {
   }
 
   lines.push('');
+  if (rec.noAcceptanceTest) {
+    lines.push(`  ${paint(SOFT_RED, NO_ACCEPTANCE_TEST)}`);
+    lines.push('');
+  }
   if (input.scoreboardPath) lines.push(`  Scoreboard  ${input.scoreboardPath}`);
   const ladder = input.ladder ? ladderSummary(input.ladder) : '';
   if (ladder) lines.push(`  Ladder      ${ladder}`);

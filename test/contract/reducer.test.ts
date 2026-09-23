@@ -24,7 +24,7 @@ describe('reducer', () => {
     expect(claude.status).toBe('ok');
     expect(claude.costUsd).toBe(1.42);
     expect(claude.prNumber).toBe(12);
-    expect(claude.score?.total).toBe(74.7);
+    expect(claude.score?.total).toBe(75);
     const oc = s.agents.find((a) => a.driver === 'opencode')!;
     expect(oc.status).toBe('timeout');
     expect(oc.lastAction).toBe('reading src/index.ts');

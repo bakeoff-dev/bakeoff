@@ -145,3 +145,31 @@ describe('modelLabel', () => {
     expect(modelLabel(null, 'claude-opus-5')).toBe('claude-opus-5');
   });
 });
+
+describe('the no-acceptance-test warning', () => {
+  afterEach(() => {
+    delete process.env.NO_COLOR;
+  });
+
+  it('is absent when the race could check the issue', () => {
+    process.env.NO_COLOR = '1';
+    expect(finalTable({ record: rec })).not.toContain('No test checks this issue');
+  });
+
+  it('says exactly what the score does and does not mean', () => {
+    process.env.NO_COLOR = '1';
+    const out = finalTable({ record: { ...rec, noAcceptanceTest: true } });
+    expect(out).toContain(
+      'No test checks this issue. Scores show nothing broke, not that the issue was solved.',
+    );
+  });
+
+  it('appears next to the scores, not buried after the run record', () => {
+    process.env.NO_COLOR = '1';
+    const lines = finalTable({ record: { ...rec, noAcceptanceTest: true } }).split('\n');
+    const warn = lines.findIndex((l) => l.includes('No test checks'));
+    const record = lines.findIndex((l) => l.includes('Run record'));
+    expect(warn).toBeGreaterThan(-1);
+    expect(warn).toBeLessThan(record);
+  });
+});
