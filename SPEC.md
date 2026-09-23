@@ -2,7 +2,7 @@
 
 > Race coding agents on your real issues. Merge the winner.
 
-Status: approved design, 2026-09-02. Source documents: `pr-arena-v1-spec.md` (product spec) and the competitive sweep (`compass_artifact_*.md`). This file is the build contract; where it disagrees with the product spec, this file wins.
+Status: approved design, 2026-09-02. Source documents: `docs/planning/pr-arena-v1-spec.md` (product spec) and the competitive sweep (`docs/planning/compass_artifact_*.md`). This file is the build contract; where it disagrees with the product spec, this file wins.
 
 ## 0. Decisions already made (do not relitigate)
 

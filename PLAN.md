@@ -8,7 +8,7 @@
 
 **Tech Stack:** Bun 1.3, TypeScript 5, commander 15, @clack/prompts 1.7, zod, yaml, openskill 5, satori 0.33, @resvg/resvg-js 2.6, Vite 6, React 19, vite-plugin-singlefile 2.3, vitest. UI styling is plain CSS-in-JS style objects copied from the design handoff; no Tailwind.
 
-**Spec:** `SPEC.md` (this repo root). The product spec `pr-arena-v1-spec.md` is background only.
+**Spec:** `SPEC.md` (this repo root). The product spec `docs/planning/pr-arena-v1-spec.md` is background only.
 
 ## Global Constraints
 

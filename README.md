@@ -13,19 +13,31 @@ scoreboard, a run record you can diff, and a per-repo ladder that gets more usef
 race.
 
 The question it answers is not "which agent is best" but "which agent is best **on this
-codebase, on this issue**" — and the answer is a branch you can merge, not a report.
+codebase, on this issue**" — and the answer is a branch you can review and merge yourself,
+not a report.
 
-> **Status:** pre-release, 0.1.0, not yet published to npm. Races, task packets and pull
-> requests work end to end today. Scoring, the remaining agent drivers, the browser
-> scoreboard and the `share` / `ladder` / `merge` / `export` commands are being wired up
-> now.
+> **Status:** pre-release, 0.1.0, not yet on npm — install from source for now. Races score
+> end to end: task packets, per-agent pull requests, the full score breakdown, the ladder,
+> the terminal table, `share` / `ladder` / `export`, the standalone HTML scoreboard, and
+> `run --watch`. Four agents are supported. OpenCode has no driver yet, and the LLM judge
+> component is off by default and still to come.
 
 ## Install
 
+Until the npm release, install from source:
+
 ```bash
-npm i -g bakeoff-cli
+git clone https://github.com/bakeoff-dev/bakeoff
+cd bakeoff
+bun install
+bun run build
+npm link          # puts `bakeoff` on your PATH
+
 bakeoff doctor
 ```
+
+`npm i -g bakeoff-cli` arrives with the 0.1.0 release. Building needs [Bun](https://bun.sh);
+running the built CLI does not — it is a Node binary.
 
 `bakeoff doctor` is the preflight: it checks each agent CLI is installed, logged in, and
 still has the flags Bakeoff drives it with, and that `git` and `gh` are ready.
@@ -54,6 +66,20 @@ What happens per agent: a worktree at `$TMPDIR/bakeoff/<run>/<driver>` on a bran
 `bakeoff/<issue>-<driver>-<run>`, the agent runs headless against an identical task packet,
 then Bakeoff commits anything left over, pushes, and opens a pull request labelled
 `bakeoff` and `bakeoff-run:<id>`. The agent never pushes and never opens a PR itself.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `bakeoff doctor` | Preflight: each agent CLI installed, logged in, still carrying the flags Bakeoff drives it with, plus `git` and `gh`. Defaults to every agent it knows. |
+| `bakeoff init` | Writes `bakeoff.yml`, creates `.bakeoff/hidden/` with a README, adds the gitignore entries. |
+| `bakeoff run [issue]` | Races. `--agents`, `--budget`, `--timeout`, `--keep-worktrees`, `--watch`. |
+| `bakeoff run --watch` | Same race, plus a live view in your browser on `127.0.0.1`. Opens it for you. |
+| `bakeoff export [id]` | Writes `.bakeoff/runs/<id>.html`, the whole race in one file. Every run writes one already; this is for older runs. |
+| `bakeoff share [id]` | Renders the run's share card to `.bakeoff/runs/<id>.png`. |
+| `bakeoff ladder` | This repository's standings. |
+
+`[id]` defaults to the most recent run.
 
 ## Agents
 
@@ -160,6 +186,7 @@ rather than a score on someone else's website.
 
 ```yaml
 # all keys optional except one of test / lint / typecheck
+setup: bun install --frozen-lockfile  # runs before each agent starts; must not dirty tracked files
 test: bun test                      # run from the worktree root; exit 0 is green
 lint: bun run lint
 typecheck: bunx tsc --noEmit
