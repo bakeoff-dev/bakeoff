@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentResult, Baseline, Caps, Configured, DriverId, RaceEvent, RepoInfo, RunRecord } from '@contract';
+import type { AgentResult, Baseline, Caps, Configured, DriverId, RaceEvent, RepoInfo, RunRecord, TokenUsage } from '@contract';
 import type { BudgetMeter } from './budget';
 import { configuredFlags, type Config } from './config';
 import { getDriver as registryGet } from './drivers/registry';
-import type { AgentEvent, Driver } from './drivers/types';
+import { addTokens, type AgentEvent, type Driver } from './drivers/types';
 import { exec as realExec, type Exec } from './exec';
 import type { IssueData } from './issue';
 import { NAMES, branchName, runLabel } from './names';
@@ -12,6 +12,7 @@ import { buildPacket, readGuidance } from './packet';
 import { defaultMeter } from './pricing';
 import { commitLeftovers, createPr, ensureLabels, pushBranch } from './publish';
 import { appendEvent, paths, writeRun } from './store';
+import { oneLine } from './text';
 import { createWorktree, removeWorktree, worktreeDir } from './worktree';
 
 export interface RaceInput {
@@ -153,20 +154,25 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     const files = new Set<string>();
     let lastAction = '';
     let lastProgress = 0;
+    let tokens: TokenUsage | null = null;
 
     await gitLock(() => createWorktree({ repoRoot, baseSha: repo.baseSha, branch: agent.branch, dir }, deps.exec));
     emit({ type: 'agent.started', at: at(), driver: agent.driver, branch: agent.branch });
 
     const onEvent = (e: AgentEvent): void => {
-      if (e.kind === 'action') lastAction = e.text;
+      // Agent text is untrusted: a heredoc commit message arrives with real newlines.
+      if (e.kind === 'action') lastAction = oneLine(e.text);
       if (e.kind === 'file') files.add(e.path);
+      if (e.kind === 'usage') tokens = addTokens(tokens, e.tokens);
       const nowMs = Date.now();
-      // Throttle: agents emit far faster than anyone can read. Cost always gets through.
-      if (nowMs - lastProgress > PROGRESS_MIN_MS || e.kind === 'cost') {
+      // Throttle the cosmetic stream: actions and files arrive faster than anyone can read.
+      // Metrics always get through, so cost and tokens never sit stale behind the throttle.
+      const isMetric = e.kind === 'cost' || e.kind === 'usage';
+      if (isMetric || nowMs - lastProgress > PROGRESS_MIN_MS) {
         lastProgress = nowMs;
         emit({
           type: 'agent.progress', at: at(), driver: agent.driver,
-          costUsd: meter.costUsd, tokens: null, lastAction, filesTouched: files.size,
+          costUsd: meter.costUsd, tokens, lastAction, filesTouched: files.size,
         });
       }
     };

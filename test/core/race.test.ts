@@ -12,6 +12,8 @@ import type { Config } from '../../src/core/config';
 
 const TOKENS = { input: 10, output: 5, cacheRead: 0, cacheWrite: 0 };
 
+const MULTILINE_ACTION = 'Bash git commit -q -m "$(cat <<\'EOF\'\r\nAdd list command with';
+
 function fakeDriver(id: 'claude' | 'codex', behaviour: 'ok' | 'crash' | 'throw'): Driver {
   return {
     id,
@@ -20,6 +22,8 @@ function fakeDriver(id: 'claude' | 'codex', behaviour: 'ok' | 'crash' | 'throw')
     doctor: async () => ({ found: true, version: '0', authOk: true, notes: [] }),
     launch: async (i) => {
       i.onEvent({ kind: 'action', text: 'Edit a.txt' });
+      i.onEvent({ kind: 'action', text: MULTILINE_ACTION });
+      i.onEvent({ kind: 'usage', tokens: TOKENS, model: 'gpt-5' });
       i.onEvent({ kind: 'usage', tokens: TOKENS, model: 'gpt-5' });
       if (behaviour === 'throw') throw new Error('driver exploded');
       if (behaviour === 'ok') {
@@ -136,6 +140,31 @@ describe('runRace', () => {
     expect(started).toBeDefined();
     const exited = events.find((e) => e.type === 'agent.exited' && e.driver === 'codex');
     expect(exited?.type === 'agent.exited' && exited.status).toBe('crashed');
+  });
+
+  it('reports running token totals on agent.progress', async () => {
+    const { repo, rec } = await setup({ claude: 'ok', codex: 'crash' });
+    const progress = readEvents(repo.dir, rec.id).filter(
+      (e) => e.type === 'agent.progress' && e.driver === 'claude',
+    );
+    expect(progress.length).toBeGreaterThan(0);
+    const withTokens = progress.filter((e) => e.type === 'agent.progress' && e.tokens !== null);
+    // the driver emitted usage; the live view must not show "- tok" for the whole race
+    expect(withTokens.length).toBeGreaterThan(0);
+    const last = withTokens.at(-1);
+    // two usage events of the same size accumulate
+    expect(last?.type === 'agent.progress' && last.tokens).toEqual({
+      input: TOKENS.input * 2, output: TOKENS.output * 2, cacheRead: 0, cacheWrite: 0,
+    });
+  });
+
+  it('normalises a multi-line action to one line before anyone renders it', async () => {
+    const { repo, rec } = await setup({ claude: 'ok', codex: 'crash' });
+    const progress = readEvents(repo.dir, rec.id).filter((e) => e.type === 'agent.progress');
+    const actions = progress.map((e) => (e.type === 'agent.progress' ? e.lastAction : ''));
+    expect(actions.some((a) => a.includes('Add list command with'))).toBe(true);
+    // a raw newline here becomes an extra terminal row the live view cannot account for
+    for (const a of actions) expect(a).not.toMatch(/[\r\n\t]/);
   });
 
   it('survives a driver that throws, recording it as crashed', async () => {

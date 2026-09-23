@@ -2,6 +2,7 @@ import { tmpdir } from 'node:os';
 import type { Caps, TokenUsage } from '@contract';
 import { exec } from '../exec';
 import { runProcess } from '../process';
+import type { CacheWriteSplit } from '../budget';
 import { addTokens, helpHasFlags, type AgentEvent, type Driver, type LaunchInput, type LaunchResult } from './types';
 
 export interface ClaudeResult {
@@ -52,6 +53,20 @@ function usageFrom(u: unknown): TokenUsage | null {
   };
 }
 
+/**
+ * Cache writes split by TTL. The two tiers bill differently (1.25x vs 2x input), and
+ * Claude Code writes 1h entries, so metering the total at the 5m rate under-bills.
+ * When the breakdown is missing, attribute everything to 5m -- the cheaper, safer read.
+ */
+function cacheWriteFrom(u: unknown): CacheWriteSplit {
+  const o = obj(u);
+  const c = obj(o.cache_creation);
+  const m5 = num(c.ephemeral_5m_input_tokens);
+  const h1 = num(c.ephemeral_1h_input_tokens);
+  if (m5 === 0 && h1 === 0) return { m5: num(o.cache_creation_input_tokens), h1: 0 };
+  return { m5, h1 };
+}
+
 function actionText(name: string, input: Record<string, unknown>): string {
   const target =
     str(input.file_path) || str(input.command) || str(input.pattern) || str(input.path) || str(input.url) || '';
@@ -59,7 +74,10 @@ function actionText(name: string, input: Record<string, unknown>): string {
 }
 
 /** Every field access is guarded: the envelope is untrusted and its shape churns between versions. */
-export function parseClaudeLine(line: string): { events: AgentEvent[]; result: ClaudeResult | null } {
+export interface ParsedLine { events: AgentEvent[]; result: ClaudeResult | null; messageId?: string | null }
+
+/** Pure per-line parse. Usage here is per-message, not per-stream: see `createClaudeStream`. */
+export function parseClaudeLine(line: string): ParsedLine {
   let j: unknown;
   try {
     j = JSON.parse(line);
@@ -82,8 +100,13 @@ export function parseClaudeLine(line: string): { events: AgentEvent[]; result: C
       if (WRITE_TOOLS.includes(name) && str(input.file_path)) events.push({ kind: 'file', path: str(input.file_path) });
     }
     const tokens = usageFrom(msg.usage);
-    if (tokens) events.push({ kind: 'usage', tokens, model: str(msg.model) || 'claude' });
-    return { events, result: null };
+    if (tokens) {
+      events.push({
+        kind: 'usage', tokens, model: str(msg.model) || 'claude', cacheWrite: cacheWriteFrom(msg.usage),
+      });
+    }
+    const messageId = str(msg.id);
+    return messageId ? { events, result: null, messageId } : { events, result: null };
   }
 
   if (o.type === 'result') {
@@ -118,6 +141,30 @@ export function probeAuthOk(stdout: string): boolean {
   const o = obj(j);
   if (o.is_error !== true) return true;
   return str(o.subtype).startsWith('error_max_budget');
+}
+
+/**
+ * Stateful wrapper over `parseClaudeLine`.
+ *
+ * Claude emits one line per content block, and every line repeats the *whole* message's
+ * usage. Metering each line therefore counts a two-block message twice -- the recorded
+ * 20260923-mosj race billed 28 lines for 14 messages and overestimated by about 18%.
+ * Counting each message id once turns those repeats back into per-message deltas.
+ */
+export function createClaudeStream(): { push(line: string): ParsedLine } {
+  const metered = new Set<string>();
+  return {
+    push(line: string): ParsedLine {
+      const parsed = parseClaudeLine(line);
+      const id = parsed.messageId;
+      if (!id) return parsed;
+      if (metered.has(id)) {
+        return { ...parsed, events: parsed.events.filter((e) => e.kind !== 'usage') };
+      }
+      metered.add(id);
+      return parsed;
+    },
+  };
 }
 
 export const claudeDriver: Driver = {
@@ -158,6 +205,7 @@ export const claudeDriver: Driver = {
     const bare = process.env.BAKEOFF_BARE === '1' && !!process.env.ANTHROPIC_API_KEY;
     let tokens: TokenUsage | null = null;
     let result: ClaudeResult | null = null;
+    const stream = createClaudeStream();
     const r = await runProcess({
       cmd: 'claude',
       args: claudeArgs(input, { bare }),
@@ -168,11 +216,11 @@ export const claudeDriver: Driver = {
       meter: input.meter,
       logPath: input.logPath,
       onStdoutLine: (line) => {
-        const parsed = parseClaudeLine(line);
+        const parsed = stream.push(line);
         for (const e of parsed.events) {
           if (e.kind === 'usage') {
             tokens = addTokens(tokens, e.tokens);
-            input.meter.addUsage(e.tokens, e.model);
+            input.meter.addUsage(e.tokens, e.model, e.cacheWrite);
           }
           if (e.kind === 'cost') input.meter.setCost(e.costUsd);
           input.onEvent(e);
