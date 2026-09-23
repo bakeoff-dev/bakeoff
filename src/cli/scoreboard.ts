@@ -36,18 +36,22 @@ export function injectBootstrap(html: string, boot: Bootstrap): string {
   return html.replace(ANCHOR, tag);
 }
 
-export function renderScoreboard(boot: Bootstrap): string {
-  return injectBootstrap(readFileSync(uiHtmlPath(), 'utf8'), boot);
+/**
+ * `template` exists so a test never has to depend on a built `dist/`. Left out, the
+ * packaged UI is read from disk, which is what every real caller wants.
+ */
+export function renderScoreboard(boot: Bootstrap, template?: string): string {
+  return injectBootstrap(template ?? readFileSync(uiHtmlPath(), 'utf8'), boot);
 }
 
 /**
  * Write `.bakeoff/runs/<id>.html`: the whole race in one file, openable offline.
  * The ladder rides along because a static export has nowhere to fetch it from.
  */
-export function exportScoreboard(repoRoot: string, runId: string): string {
+export function exportScoreboard(repoRoot: string, runId: string, template?: string): string {
   const events = readEvents(repoRoot, runId);
   if (events.length === 0) throw new Error(`No events for run ${runId}`);
-  const html = renderScoreboard({ mode: 'static', events, ladder: readLadder(repoRoot) });
+  const html = renderScoreboard({ mode: 'static', events, ladder: readLadder(repoRoot) }, template);
   const out = paths(repoRoot).html(runId);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, html);

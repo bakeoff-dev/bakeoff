@@ -5,6 +5,13 @@ import { embedJson, injectBootstrap, renderScoreboard } from '../../src/cli/scor
 
 const events = parseEventLines(readFileSync('src/contract/fixtures/events.jsonl', 'utf8'));
 
+/**
+ * The shell, inline. Reading dist/ui.html here made the suite depend on a build that
+ * CI does not run until after the tests, so it passed locally on a stale dist and
+ * failed everywhere else.
+ */
+const TEMPLATE = '<!doctype html><html><head><!--BAKEOFF_DATA--></head><body><div id="root"></div></body></html>';
+
 describe('embedJson', () => {
   it('survives being read as HTML', () => {
     // a payload containing </script> would otherwise close the tag early
@@ -33,7 +40,7 @@ describe('injectBootstrap', () => {
 });
 
 describe('the exported scoreboard', () => {
-  const html = renderScoreboard({ mode: 'static', events });
+  const html = renderScoreboard({ mode: 'static', events }, TEMPLATE);
 
   it('carries the whole race inline', () => {
     const json = /<script id="bakeoff-data" type="application\/json">([\s\S]*?)<\/script>/.exec(html)![1]!;

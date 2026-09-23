@@ -11,16 +11,26 @@ const started: RaceEvent = {
   baseline: { testsGreen: true, lintGreen: null, typecheckGreen: null, setupError: null },
 };
 
+/** The shell the real UI build produces, reduced to what injection needs. */
+const TEMPLATE = '<!doctype html><html><head><!--BAKEOFF_DATA--></head><body></body></html>';
+
 let server: WatchServer | null = null;
 const aborted: string[] = [];
 
+/**
+ * Never the product's default port. A real `run --watch` on the same machine holds
+ * 4141, and a test that raced it failed with a bare "fetch failed".
+ */
+let nextPort = 45300;
 const start = async (port?: number) => {
   aborted.length = 0;
+  const bind = port ?? (nextPort += 1);
   server = await startWatchServer({
     history: () => [started],
     ladder: () => ({ schemaVersion: 2, entries: {} }),
     abort: (d) => aborted.push(d),
-    port,
+    port: bind,
+    template: TEMPLATE,
   });
   return server;
 };
@@ -118,7 +128,7 @@ describe('the watch server', () => {
     const first = await start(45211);
     expect(first.port).toBe(45211);
     const second = await startWatchServer({
-      history: () => [], ladder: () => ({}), abort: () => {}, port: 45211,
+      history: () => [], ladder: () => ({}), abort: () => {}, port: 45211, template: TEMPLATE,
     });
     expect(second.port).toBe(45212);
     expect(second.url).toContain(':45212');

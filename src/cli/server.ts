@@ -25,6 +25,8 @@ export interface WatchServerInput {
   ladder: () => unknown;
   abort: (driver: DriverId) => void;
   port?: number;
+  /** The UI shell. Left out, the packaged `dist/ui.html` is read at request time. */
+  template?: string;
 }
 
 /**
@@ -85,7 +87,7 @@ export async function startWatchServer(input: WatchServerInput): Promise<WatchSe
     if (req.method === 'GET' && url.pathname === '/') {
       // The page itself carries no secrets; it is handed the token to use.
       const eventsUrl = authed ? `/events?t=${token}` : '/events';
-      send(res, 200, 'text/html; charset=utf-8', renderScoreboard({ mode: 'live', eventsUrl }));
+      send(res, 200, 'text/html; charset=utf-8', renderScoreboard({ mode: 'live', eventsUrl }, input.template));
       return;
     }
 
