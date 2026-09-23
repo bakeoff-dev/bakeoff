@@ -1,11 +1,57 @@
 import { useEffect, useState } from 'react';
 import {
   LadderSchema, RaceEventSchema, applyEvent, initialState, parseEventLines, reduceEvents,
-  type Ladder, type RaceEvent, type RaceState,
+  type DriverId, type Ladder, type RaceEvent, type RaceState,
 } from '@contract';
 
-/** Served by the watch server alongside the SSE stream (Task 28). */
+/** Served by the watch server alongside the SSE stream. */
 const LADDER_URL = '/ladder.json';
+
+/**
+ * Every watch-server route but `/` wants the run's token, and the page is opened at
+ * `/?t=<token>`. A static export has no query and never calls any of them.
+ */
+export function tokenFrom(search: string): string | null {
+  return new URLSearchParams(search).get('t');
+}
+
+export function withToken(path: string, token: string | null): string {
+  return token === null ? path : `${path}?t=${encodeURIComponent(token)}`;
+}
+
+/**
+ * What the events carry and `AgentLane` does not. The reducer is contract-owned and
+ * shared with the terminal, so the UI folds the same stream a second time rather than
+ * widening it: `requestedModel` (only on `agent.started`), the model the CLI actually
+ * reported (only on `agent.exited`), and the running log tail (only on `agent.progress`).
+ */
+export interface LaneExtra {
+  model: string | null;
+  requestedModel: string | null;
+  logTail: string;
+}
+export type LaneExtras = Partial<Record<DriverId, LaneExtra>>;
+
+export const noExtra: LaneExtra = { model: null, requestedModel: null, logTail: '' };
+
+export function applyExtra(x: LaneExtras, e: RaceEvent): LaneExtras {
+  const at = (driver: DriverId, f: (p: LaneExtra) => LaneExtra): LaneExtras => ({
+    ...x, [driver]: f(x[driver] ?? noExtra),
+  });
+  switch (e.type) {
+    case 'agent.started':
+      return at(e.driver, (p) => ({ ...p, model: e.model, requestedModel: e.requestedModel }));
+    case 'agent.progress':
+      return at(e.driver, (p) => ({ ...p, logTail: e.logTail }));
+    case 'agent.exited':
+      // A CLI that named no model on exit has not retracted the one it started with.
+      return at(e.driver, (p) => ({ ...p, model: e.model ?? p.model }));
+    default:
+      return x;
+  }
+}
+
+export const laneExtrasOf = (events: RaceEvent[]): LaneExtras => events.reduce(applyExtra, {});
 
 export type Bootstrap =
   | { mode: 'static'; events: RaceEvent[]; ladder?: Ladder }
@@ -35,15 +81,28 @@ export function loadBootstrap(): Bootstrap {
   return parseBootstrap(tag?.textContent ?? null, window, devEvents);
 }
 
-export function useRaceState(b: Bootstrap): RaceState {
-  const [state, setState] = useState<RaceState>(() => (b.mode === 'static' ? reduceEvents(b.events) : initialState));
+export interface Race {
+  state: RaceState;
+  extras: LaneExtras;
+}
+
+/** One pass over the stream feeds both the shared reducer and the UI's own lane extras. */
+export function useRace(b: Bootstrap): Race {
+  const [race, setRace] = useState<Race>(() =>
+    b.mode === 'static'
+      ? { state: reduceEvents(b.events), extras: laneExtrasOf(b.events) }
+      : { state: initialState, extras: {} },
+  );
   useEffect(() => {
     if (b.mode !== 'live') return;
     const es = new EventSource(b.eventsUrl);
-    es.onmessage = (m) => setState((s) => applyEvent(s, RaceEventSchema.parse(JSON.parse(m.data))));
+    es.onmessage = (m) => {
+      const e = RaceEventSchema.parse(JSON.parse(m.data));
+      setRace((r) => ({ state: applyEvent(r.state, e), extras: applyExtra(r.extras, e) }));
+    };
     return () => es.close();
   }, [b]);
-  return state;
+  return race;
 }
 
 /**
@@ -55,7 +114,7 @@ export function useLadder(b: Bootstrap, finished: boolean): Ladder | null {
   useEffect(() => {
     if (b.mode !== 'live' || !finished) return;
     let live = true;
-    void fetch(LADDER_URL)
+    void fetch(withToken(LADDER_URL, tokenFrom(window.location.search)))
       .then((r) => (r.ok ? r.json() : null))
       .then((j: unknown) => {
         const parsed = j === null ? null : LadderSchema.safeParse(j);

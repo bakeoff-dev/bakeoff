@@ -1,9 +1,9 @@
 import type { RaceState } from '@contract';
-import type { Bootstrap } from '../data';
+import type { Bootstrap, LaneExtras } from '../data';
 import { Lane } from '../components/Lane';
 import { T, col, surface } from '../theme';
 
-export function Race({ state, bootstrap }: { state: RaceState; bootstrap: Bootstrap }) {
+export function Race({ state, extras, bootstrap }: { state: RaceState; extras: LaneExtras; bootstrap: Bootstrap }) {
   const running = state.agents.filter((a) => a.status === 'running').length;
   return (
     <div style={{ ...col, gap: 20 }}>
@@ -22,6 +22,7 @@ export function Race({ state, bootstrap }: { state: RaceState; bootstrap: Bootst
           <Lane
             key={lane.driver}
             lane={lane}
+            extra={extras[lane.driver]}
             budget={state.caps?.budgetUsd ?? 1}
             record={state.record}
             live={bootstrap.mode === 'live'}
