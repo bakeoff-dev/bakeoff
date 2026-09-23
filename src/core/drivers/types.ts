@@ -105,10 +105,11 @@ export function createUsageLedger(): {
 /**
  * A stable model id. CLIs report models inconsistently -- an id, a display label, a
  * variant suffix -- and the ladder keys on this string, so two spellings of one model
- * must not become two rows.
+ * must not become two rows. `/` survives, because a provider-qualified id such as
+ * `anthropic/claude-opus-5` is the model's real name, not punctuation.
  */
 export function normalizeModel(raw: string): string {
-  return raw.trim().toLowerCase().replace(/[^a-z0-9.+-]+/g, '-').replace(/^-+|-+$/g, '');
+  return raw.trim().toLowerCase().replace(/[^a-z0-9./+-]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 export interface ModelShare { model: string; output: number; total: number }

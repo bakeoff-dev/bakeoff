@@ -25,6 +25,11 @@ export function branchName(issue: number, driver: string, runId: string): string
   return `${NAMES.branchPrefix}/${issue}-${driver}-${runId}`;
 }
 
+/** The throwaway branch the baseline worktree sits on. */
+export function baselineBranch(runId: string): string {
+  return `${NAMES.branchPrefix}-baseline-${runId}`;
+}
+
 export function runLabel(runId: string): string {
   return `${NAMES.runLabelPrefix}${runId}`;
 }

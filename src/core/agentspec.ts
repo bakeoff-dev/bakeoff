@@ -1,4 +1,5 @@
 import { DriverIdSchema, type DriverId } from '@contract';
+import { normalizeModel } from './drivers/types';
 
 /** One competitor in a race: which CLI, and which model it should run. */
 export interface AgentSpec {
@@ -31,7 +32,9 @@ export function parseAgentSpec(spec: string): AgentSpec {
   if (rawModel.length === 0) {
     throw new Error(`Missing model after ":" in "${text}" (use "${rawDriver}" or "${rawDriver}:auto" for the default)`);
   }
-  return { driver: parsed.data, model: rawModel.toLowerCase() === AUTO ? null : rawModel };
+  // Normalised the same way drivers normalise what they report, so `Claude-Opus-5` and
+  // `claude-opus-5` are one ladder row rather than two.
+  return { driver: parsed.data, model: rawModel.toLowerCase() === AUTO ? null : normalizeModel(rawModel) };
 }
 
 /**

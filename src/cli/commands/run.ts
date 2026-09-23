@@ -1,18 +1,47 @@
+import { existsSync, readdirSync } from 'node:fs';
 import * as p from '@clack/prompts';
-import type { DriverId } from '@contract';
+import type { Baseline, DriverId } from '@contract';
 import { formatAgentSpec, parseAgentSpecs, type AgentSpec } from '../../core/agentspec';
-import { loadConfig, parseDuration } from '../../core/config';
+import { loadConfig, parseDuration, type Config } from '../../core/config';
 import { fetchIssue, listOpenIssues, parseIssueRef, type IssueRef } from '../../core/issue';
 import { NAMES } from '../../core/names';
 import { defaultDeps, runRace } from '../../core/race';
+import { computeBaseline } from '../../core/scorer/checks';
+import { newRunId, paths } from '../../core/store';
 import { detectRepo } from '../../core/repo';
-import { newRunId } from '../../core/store';
+
 import { progressRenderer } from '../render/progress';
 import { DRIVER_NAME, STATUS_WORD, dim, fmtClock, fmtCost, paint, DRIVER_HEX } from '../render/style';
 import { doctorReport } from './doctor';
 
 export interface RunOpts {
   agents?: string; budget?: string; timeout?: string; watch?: boolean; keepWorktrees?: boolean;
+}
+
+/**
+ * Things worth knowing before the agents start: a broken install, a red baseline, or
+ * hidden tests configured with nothing behind them. None of these stop the race.
+ */
+export function preflightWarnings(
+  config: Config,
+  baseline: Baseline,
+  repoRoot: string,
+): string[] {
+  const out: string[] = [];
+  if (baseline.setupError) {
+    out.push(`${baseline.setupError} in the baseline worktree; every check will read red`);
+  }
+  if (baseline.testsGreen === false) {
+    out.push('baseline tests are already failing, so the visible-tests component cannot separate the agents');
+  }
+  if (config.hidden_tests) {
+    const dir = config.hidden_tests.source || paths(repoRoot).hiddenDir;
+    const entries = existsSync(dir) ? readdirSync(dir) : [];
+    if (entries.length === 0) {
+      out.push(`hidden_tests is configured but ${dir} is empty or missing; that component will score n/a`);
+    }
+  }
+  return out;
 }
 
 export async function runCommand(issueArg: string | undefined, opts: RunOpts): Promise<void> {
@@ -71,6 +100,14 @@ export async function runCommand(issueArg: string | undefined, opts: RunOpts): P
   );
 
   const deps = defaultDeps();
+
+  // The baseline runs before any agent, so its warnings arrive before anything is spent.
+  const baseline = await computeBaseline({
+    repoRoot: repo.root, baseSha: repo.baseSha, runId, config,
+  });
+  deps.baseline = async () => baseline;
+  for (const w of preflightWarnings(config, baseline, repo.root)) p.log.warn(w);
+
   const live = progressRenderer();
   deps.onEvent = live.onEvent;
   const rec = await runRace(

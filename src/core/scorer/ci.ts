@@ -28,6 +28,12 @@ export interface CiInput {
   repo: { owner: string; name: string };
   prNumber: number;
   timeoutMs: number;
+  /**
+   * Does the base commit have anything under `.github/workflows/`? Workflows register
+   * seconds after a PR opens, so until they do `gh` honestly reports no checks. With
+   * workflow files present that means "not yet"; without them it means "never".
+   */
+  hasWorkflows?: boolean;
   intervalMs?: number;
   run?: Exec;
   sleep?: (ms: number) => Promise<void>;
@@ -53,11 +59,18 @@ export async function ciComponent(o: CiInput): Promise<ScoreComponent> {
 
     // gh exits 8 while checks run and 1 when one fails, so a non-zero exit is not itself
     // a verdict; only a response we cannot read is.
-    if (!list) {
-      if (/no checks/i.test(`${r.stderr}\n${r.stdout}`)) return na('no checks on this repo');
-      return na(`gh pr checks failed: ${firstLine(r.stderr || r.stdout) || `exit ${r.code}`}`);
+    const noChecks = !list
+      ? /no checks/i.test(`${r.stderr}\n${r.stdout}`)
+      : list.length === 0;
+
+    if (noChecks) {
+      if (!o.hasWorkflows) return na('no checks on this repo');
+      // Workflows exist but have not registered yet; keep waiting rather than scoring n/a.
+      if (now() - start >= o.timeoutMs) return na('no checks reported before the ci timeout');
+      await sleep(interval);
+      continue;
     }
-    if (list.length === 0) return na('no checks on this repo');
+    if (!list) return na(`gh pr checks failed: ${firstLine(r.stderr || r.stdout) || `exit ${r.code}`}`);
 
     const failed = list.filter((c) => FAILED.test(verdict(c)));
     if (failed.length) {

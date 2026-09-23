@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  AgentResultSchema, LadderEntrySchema, LadderSchema, RaceEventSchema, RunRecordSchema, SCHEMA_VERSION,
+  AgentResultSchema, BaselineSchema, LadderEntrySchema, LadderSchema, RaceEventSchema, RunRecordSchema, SCHEMA_VERSION,
   competitorKey, type Ladder, type RaceEvent, type RunRecord,
 } from './schema';
 
@@ -12,9 +12,10 @@ import {
  * These are frozen copies: never widen them to accept newer fields.
  */
 const AgentResultV1Schema = AgentResultSchema.omit({ model: true, requestedModel: true });
-const RunRecordV1Schema = RunRecordSchema.omit({ schemaVersion: true, agents: true }).extend({
+const RunRecordV1Schema = RunRecordSchema.omit({ schemaVersion: true, agents: true, baseline: true }).extend({
   schemaVersion: z.literal(1),
   agents: z.array(AgentResultV1Schema),
+  baseline: BaselineSchema.omit({ setupError: true }),
 });
 const LadderEntryV1Schema = LadderEntrySchema.omit({ model: true });
 const LadderV1Schema = z.object({
@@ -38,9 +39,15 @@ function unknownVersion(what: string, raw: unknown): Error {
  */
 function fillAdditive(raw: unknown): unknown {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
-  if (o === null || !Array.isArray(o.agents)) return raw;
+  if (o === null) return raw;
+  const baseline =
+    o.baseline && typeof o.baseline === 'object'
+      ? { setupError: null, ...(o.baseline as Record<string, unknown>) }
+      : o.baseline;
+  if (!Array.isArray(o.agents)) return { ...o, baseline };
   return {
     ...o,
+    baseline,
     agents: o.agents.map((a) => {
       const agent = a && typeof a === 'object' ? (a as Record<string, unknown>) : {};
       return agent.requestedModel === undefined ? { ...agent, requestedModel: null } : agent;
@@ -58,6 +65,7 @@ export function readRunJson(raw: unknown): RunRecord {
     return {
       ...v1,
       schemaVersion: SCHEMA_VERSION,
+      baseline: { ...v1.baseline, setupError: null },
       agents: v1.agents.map((a) => ({ ...a, model: null, requestedModel: null })),
     };
   }
@@ -99,6 +107,13 @@ export function readRaceEvent(raw: unknown): RaceEvent {
     }
     if (o.type === 'race.finished') {
       return RaceEventSchema.parse({ ...o, record: readRunJson(o.record) });
+    }
+    // race.started carries a baseline of its own, which predates `setupError`.
+    if (o.type === 'race.started' && o.baseline && typeof o.baseline === 'object') {
+      return RaceEventSchema.parse({
+        ...o,
+        baseline: { setupError: null, ...(o.baseline as Record<string, unknown>) },
+      });
     }
   }
   return RaceEventSchema.parse(raw);

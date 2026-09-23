@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatAgentSpec, parseAgentSpec, parseAgentSpecs } from '../../src/core/agentspec';
+import { normalizeModel } from '../../src/core/drivers/types';
 
 describe('parseAgentSpec', () => {
   it('reads a bare driver as the CLI default model', () => {
@@ -88,5 +89,26 @@ describe('formatAgentSpec', () => {
     expect(parseAgentSpec(formatAgentSpec({ driver: 'codex', model: 'gpt-5.6-sol' }))).toEqual({
       driver: 'codex', model: 'gpt-5.6-sol',
     });
+  });
+});
+
+describe('a pinned model is normalized to its ladder form', () => {
+  it('does not split a row on case', () => {
+    expect(parseAgentSpec('claude:Claude-Opus-5').model).toBe('claude-opus-5');
+    expect(parseAgentSpec('claude:CLAUDE-OPUS-5').model).toBe('claude-opus-5');
+  });
+
+  it('does not split a row on spacing', () => {
+    expect(parseAgentSpec('cursor:Codex 5.3 Low').model).toBe('codex-5.3-low');
+    expect(parseAgentSpec('cursor:  Codex  5.3  Low  ').model).toBe('codex-5.3-low');
+  });
+
+  it('matches what a driver reports, so the request and the report share one row', () => {
+    // cursor announces "Codex 5.3 Low"; pinning that name must land on the same key
+    expect(parseAgentSpec('cursor:Codex 5.3 Low').model).toBe(normalizeModel('Codex 5.3 Low'));
+  });
+
+  it('leaves a provider-qualified id alone', () => {
+    expect(parseAgentSpec('opencode:anthropic/claude-opus-5').model).toBe('anthropic/claude-opus-5');
   });
 });

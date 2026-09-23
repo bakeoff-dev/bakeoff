@@ -24,7 +24,7 @@ const started: RaceEvent = {
   repo: { owner: 'o', name: 'r', defaultBranch: 'main', baseSha: 'abc' },
   agents: ['claude', 'codex'],
   caps: { budgetUsd: 3, timeoutMs: 1000, maxTurns: null },
-  baseline: { testsGreen: true, lintGreen: null, typecheckGreen: null },
+  baseline: { testsGreen: true, lintGreen: null, typecheckGreen: null, setupError: null },
 };
 
 describe('progressRenderer', () => {
@@ -91,7 +91,7 @@ describe('progressRenderer redraw under a wrapping terminal', () => {
     repo: { owner: 'bakeoff-dev', name: 'scratch', defaultBranch: 'main', baseSha: 'abc' },
     agents: ['claude'],
     caps: { budgetUsd: 3, timeoutMs: 300_000, maxTurns: null },
-    baseline: { testsGreen: null, lintGreen: null, typecheckGreen: null },
+    baseline: { testsGreen: null, lintGreen: null, typecheckGreen: null, setupError: null },
   };
 
   const drive = (term: FakeTerm, frames: number) => {
@@ -190,7 +190,7 @@ describe('progressRenderer with hostile action text', () => {
     issue: { number: 3, title: 'Add a --reverse flag to the list command', url: 'u' },
     repo: { owner: 'bakeoff-dev', name: 'scratch', defaultBranch: 'main', baseSha: 'a' },
     agents: ['claude'], caps: { budgetUsd: 3, timeoutMs: 1, maxTurns: null },
-    baseline: { testsGreen: null, lintGreen: null, typecheckGreen: null },
+    baseline: { testsGreen: null, lintGreen: null, typecheckGreen: null, setupError: null },
   };
 
   const frameHeight = (action: string, columns = 120) => {

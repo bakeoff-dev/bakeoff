@@ -56,6 +56,8 @@ export const AgentResultSchema = z.object({
 });
 export const BaselineSchema = z.object({
   testsGreen: z.boolean().nullable(), lintGreen: z.boolean().nullable(), typecheckGreen: z.boolean().nullable(),
+  /** Why the install step failed, when it did. Null means it ran or was not configured. */
+  setupError: z.string().nullable(),
 });
 export const RepoInfoSchema = z.object({
   owner: z.string(), name: z.string(), defaultBranch: z.string(), baseSha: z.string(),
