@@ -104,8 +104,16 @@ export function fmtTok(t: TokenUsage | null): string {
   const total = t.input + t.cacheRead + t.cacheWrite + t.output;
   return `${Math.round(total / 1000)}k tok`;
 }
-/** null is "unavailable" and renders as such; it is never coerced to $0.00. */
-export const fmtCost = (n: number | null): string => (n === null ? 'n/a' : `$${n.toFixed(2)}`);
+/**
+ * null is "unavailable" and renders as such; it is never coerced to $0.00. A real cost
+ * too small to show at two decimals reads as `<$0.01`, because a cheap model rounding
+ * to `$0.00` looks free rather than nearly free.
+ */
+export const fmtCost = (n: number | null): string => {
+  if (n === null) return 'n/a';
+  if (n > 0 && n < 0.005) return '<$0.01';
+  return `$${n.toFixed(2)}`;
+};
 
 export function spendBar(cost: number | null, budget: number, width = 20, hex = '#FFFFFF'): string {
   const filled = cost === null ? 0 : Math.min(width, Math.round((cost / budget) * width));

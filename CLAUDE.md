@@ -71,6 +71,12 @@ test/           vitest
 - CI polls from the moment an agent's PR exists, alongside that agent's local checks. With files under `.github/workflows/`, "no checks reported" means not yet and keeps polling to `ci_timeout`; without them it means never and scores n/a at once.
 - `setup:` runs in the baseline worktree and in every agent worktree before that agent launches. A failure crashes the agent before it starts. So does leaving a tracked file modified -- lockfile churn from a non-frozen install would otherwise land in every agent's diff and be scored as their work.
 
+## Commands
+
+- `run` prints the final table from `src/cli/render/table.ts` per `design/TERMINAL.md` and writes the share card. The `Scoreboard` line appears once the HTML export exists.
+- `share [id]` renders a run's card to `.bakeoff/runs/<id>.png`; the id defaults to the latest run. Fonts resolve relative to `src/render/`, which is right from source and needs the dist layout taught to it when packaging.
+- `ladder` prints this repo's ladder. A null model shows as `auto`.
+
 ## Design
 
 - The UI is specified in `design/handoff/design_handoff_bakeoff/README.md` (tokens, type, layout, motion) with HTML references in `standalone/`. Recreate it in React; do not ship the reference HTML.

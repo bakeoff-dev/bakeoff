@@ -28,7 +28,7 @@ describe('preflight warnings', () => {
 
   it('warns when the baseline tests are already red', () => {
     const w = preflightWarnings(config(), baseline({ testsGreen: false }), root);
-    expect(w.join(' ')).toMatch(/baseline tests are already failing/);
+    expect(w.join(' ')).toMatch(/baseline tests already fail at the base commit/);
   });
 
   it('does not warn when the baseline never ran tests', () => {

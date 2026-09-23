@@ -3379,7 +3379,7 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): comp
 - Consumes: `style.ts` from Task 15.
 - Produces: `renderScoreboard(rec: RunRecord, opts?: { htmlPath?: string; opened?: boolean; ladder?: Ladder }): string` laid out per `design/TERMINAL.md` "Final table" (rank, name, total, cost, `m:ss`, tests, `+a -r`, files, `PR #n`, tamper flag in soft red; rank 1 in the winner's color; `Scoreboard` and `Ladder` footer lines when given), `flagLabel(f: TamperFlag): string` (`skipped test: export.test.ts`, `deleted test: …`, `weakened asserts: …`, `edited config: …`, `wrote hidden path: …`). Tests run with `NO_COLOR=1` so output is plain.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/cli/table.test.ts
@@ -3414,7 +3414,7 @@ describe('table', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write table.ts**
+- [x] **Step 2: Run to verify failure, then write table.ts**
 
 ```ts
 // src/cli/render/table.ts
@@ -3461,7 +3461,7 @@ export function renderScoreboard(rec: RunRecord, opts: { htmlPath?: string; open
 
 Column widths are computed from the row content, so the exact spacing in the test regexes assumes the fixture values; if you change the fixture, update the regexes. In `run.ts`, replace the per-agent `console.log` loop with `console.log(renderScoreboard(rec))`; Task 26 adds `htmlPath`, Task 30 adds `ladder`.
 
-- [ ] **Step 3: Run tests, race on scratch, commit**
+- [x] **Step 3: Run tests, race on scratch, commit**
 
 ```bash
 bun test && bun run typecheck
