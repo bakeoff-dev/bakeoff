@@ -154,7 +154,7 @@ rather than a score on someone else's website.
 test: bun test                      # run from the worktree root; exit 0 is green
 lint: bun run lint
 typecheck: bunx tsc --noEmit
-test_paths: [test/, "**/*.test.ts"] # restored from base before scoring; default: detected at base
+test_paths: [test/, src/paginate.test.ts]  # restored from base before scoring; no globs, default: detected at base
 agents: [claude, codex]             # each entry "driver" or "driver:model"
 budget_usd: 3.00                    # per agent
 timeout: 20m                        # per agent, wall clock

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { diffDiscipline, isTestFile } from '../../../src/core/scorer/diff';
+import { diffDiscipline } from '../../../src/core/scorer/diff';
+import { isTestFile } from '../../../src/core/scorer/tamper';
 
 describe('isTestFile', () => {
   it('knows a test by name, whatever the language', () => {
@@ -12,6 +13,19 @@ describe('isTestFile', () => {
     expect(isTestFile('tests/acceptance/list.ts', ['tests'])).toBe(true);
     expect(isTestFile('tests', ['tests'])).toBe(true);
     expect(isTestFile('src/list.ts', ['tests'])).toBe(false);
+  });
+
+  it('reads a test path the same with or without a trailing slash', () => {
+    // the README's own example writes them as `test/`, and a second copy of this
+    // rule that did not strip the slash scored test/helpers.ts as product code
+    for (const paths of [['test'], ['test/'], ['test//']]) {
+      expect(isTestFile('test/helpers.ts', paths)).toBe(true);
+      expect(isTestFile('test/deep/nested/fixture.json', paths)).toBe(true);
+      expect(isTestFile('test', paths)).toBe(true);
+      expect(isTestFile('src/list.ts', paths)).toBe(false);
+      // a sibling directory that merely starts with the same letters is not a test
+      expect(isTestFile('testing/app.ts', paths)).toBe(false);
+    }
   });
 
   it('does not mistake product code for a test', () => {
