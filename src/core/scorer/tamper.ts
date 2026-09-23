@@ -1,6 +1,7 @@
 import type { TamperFlag } from '@contract';
 import { exec, must, type Exec } from '../exec';
 import { NAMES } from '../names';
+import { TEST_FILE_NAME } from './checks';
 
 export const SKIP_PATTERNS: RegExp[] = [
   /\.(skip|only)\s*\(/,
@@ -42,7 +43,7 @@ export function isTestFile(path: string, testPaths: string[]): boolean {
     return path === clean || path.startsWith(`${clean}/`);
   });
   if (under) return true;
-  return /\.(test|spec)\.[cm]?[jt]sx?$|_test\.(go|py)$|^test_[^/]*\.py$|\/test_[^/]*\.py$/.test(path);
+  return TEST_FILE_NAME.test(path);
 }
 
 export function countAsserts(text: string): number {

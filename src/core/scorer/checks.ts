@@ -24,13 +24,19 @@ export async function runCheck(cmd: string, cwd: string, timeoutMs = 10 * 60_000
 }
 
 const TEST_DIRS = ['test', 'tests', '__tests__', 'spec'];
-const TEST_FILE = /\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb)$/;
 const VENDORED = /(^|\/)(node_modules|dist|build|vendor|target)\//;
+
+/**
+ * A test file by name alone. Go and Python keep their tests beside the code, so a rule that
+ * only knew `.test.`/`.spec.` left those suites unrestored and unprotected. The tamper
+ * detector and path detection share this one pattern so they cannot drift apart.
+ */
+export const TEST_FILE_NAME = /\.(test|spec)\.([cm]?[jt]sx?|py|go|rb)$|_test\.(go|py)$|(^|\/)test_[^/]*\.py$/;
 
 export function testPathsFrom(files: string[]): string[] {
   const tracked = files.filter((f) => !VENDORED.test(f));
   const dirs = TEST_DIRS.filter((d) => tracked.some((f) => f.startsWith(`${d}/`)));
-  const loose = tracked.filter((f) => TEST_FILE.test(f) && !dirs.some((d) => f.startsWith(`${d}/`)));
+  const loose = tracked.filter((f) => TEST_FILE_NAME.test(f) && !dirs.some((d) => f.startsWith(`${d}/`)));
   return [...dirs, ...loose.sort()];
 }
 
