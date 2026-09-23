@@ -1,31 +1,24 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { DriverId, ScoreComponent } from '@contract';
 import { exec, must, type Exec } from '../exec';
 
 export interface DiffStats { files: string[]; added: number; removed: number }
 
-/** Everything the agent changed against base: commits, unstaged edits and untracked files. */
+/**
+ * What the agent committed, `base..HEAD`. Bakeoff commits any leftovers before scoring, so
+ * HEAD is the whole of the agent's work; the working tree at this point also holds the
+ * scorer's own restored test files and copied hidden tests, which must not be counted.
+ */
 export async function diffStats(worktree: string, baseSha: string, run: Exec = exec): Promise<DiffStats> {
   const files = new Set<string>();
   let added = 0;
   let removed = 0;
-  const numstat = await must('git', ['diff', '--numstat', baseSha], { cwd: worktree }, run);
+  const numstat = await must('git', ['diff', '--numstat', `${baseSha}..HEAD`], { cwd: worktree }, run);
   for (const line of numstat.split('\n').filter(Boolean)) {
     const [a, r, f] = line.split('\t');
     if (!f) continue;
     files.add(f);
     added += a === '-' ? 0 : Number(a);
     removed += r === '-' ? 0 : Number(r);
-  }
-  const untracked = await must('git', ['ls-files', '--others', '--exclude-standard'], { cwd: worktree }, run);
-  for (const f of untracked.split('\n').filter(Boolean)) {
-    files.add(f);
-    try {
-      added += readFileSync(join(worktree, f), 'utf8').split('\n').filter((l) => l.length > 0).length;
-    } catch {
-      /* binary or gone */
-    }
   }
   return { files: [...files], added, removed };
 }

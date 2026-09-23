@@ -10,22 +10,40 @@ const base = {
 };
 const plain = { worktree: '', baseSha: '', testPaths: ['test'], hiddenDest: null };
 
+/** The agent commits as it goes and bakeoff commits the leftovers, so scoring sees HEAD. */
+async function agentRepo(files: Record<string, string>, work: (dir: string) => void) {
+  const repo = await makeRepo(files);
+  work(repo.dir);
+  await repo.commit({}, 'agent work');
+  return repo;
+}
+
 describe('tamperFlags', () => {
   it('is empty for an honest change', async () => {
-    const repo = await makeRepo(base);
-    writeFileSync(join(repo.dir, 'src/a.ts'), 'export const a = 2;\n');
+    const repo = await agentRepo(base, (d) => writeFileSync(join(d, 'src/a.ts'), 'export const a = 2;\n'));
     expect(await tamperFlags({ ...plain, worktree: repo.dir, baseSha: repo.sha })).toEqual([]);
   });
 
   it('is empty when a new test file is added', async () => {
-    const repo = await makeRepo(base);
-    writeFileSync(join(repo.dir, 'test/b.test.ts'), "import { expect, it } from 'vitest';\nit('b', () => { expect(1).toBe(1); });\n");
+    const repo = await agentRepo(base, (d) =>
+      writeFileSync(join(d, 'test/b.test.ts'), "import { expect, it } from 'vitest';\nit('b', () => { expect(1).toBe(1); });\n"),
+    );
     expect(await tamperFlags({ ...plain, worktree: repo.dir, baseSha: repo.sha })).toEqual([]);
   });
 
-  it('flags a deleted test', async () => {
+  // The scorer restores test paths and copies hidden tests into the worktree before the
+  // test components run. Neither is the agent's doing, so neither may be scored as tamper.
+  it('ignores the working tree', async () => {
     const repo = await makeRepo(base);
     rmSync(join(repo.dir, 'test/a.test.ts'));
+    writeFileSync(join(repo.dir, 'vitest.config.ts'), 'export default {}');
+    mkdirSync(join(repo.dir, 'tests/hidden'), { recursive: true });
+    writeFileSync(join(repo.dir, 'tests/hidden/x.test.ts'), '');
+    expect(await tamperFlags({ ...plain, worktree: repo.dir, baseSha: repo.sha, hiddenDest: 'tests/hidden' })).toEqual([]);
+  });
+
+  it('flags a deleted test', async () => {
+    const repo = await agentRepo(base, (d) => rmSync(join(d, 'test/a.test.ts')));
     const f = await tamperFlags({ ...plain, worktree: repo.dir, baseSha: repo.sha });
     expect(f.map((x) => x.rule)).toContain('test_deleted');
     expect(f[0]!.file).toBe('test/a.test.ts');
@@ -48,18 +66,20 @@ describe('tamperFlags', () => {
   });
 
   it('flags .skip and weakened asserts', async () => {
-    const repo = await makeRepo(base);
-    writeFileSync(join(repo.dir, 'test/a.test.ts'), "import { expect, it } from 'vitest';\nit.skip('a', () => { expect(1).toBe(1); });\n");
+    const repo = await agentRepo(base, (d) =>
+      writeFileSync(join(d, 'test/a.test.ts'), "import { expect, it } from 'vitest';\nit.skip('a', () => { expect(1).toBe(1); });\n"),
+    );
     const rules = (await tamperFlags({ ...plain, worktree: repo.dir, baseSha: repo.sha })).map((x) => x.rule);
     expect(rules).toContain('test_skipped');
     expect(rules).toContain('asserts_weakened');
   });
 
   it('flags config writes and hidden-path writes', async () => {
-    const repo = await makeRepo(base);
-    writeFileSync(join(repo.dir, 'vitest.config.ts'), 'export default {}');
-    mkdirSync(join(repo.dir, 'tests/hidden'), { recursive: true });
-    writeFileSync(join(repo.dir, 'tests/hidden/x.test.ts'), '');
+    const repo = await agentRepo(base, (d) => {
+      writeFileSync(join(d, 'vitest.config.ts'), 'export default {}');
+      mkdirSync(join(d, 'tests/hidden'), { recursive: true });
+      writeFileSync(join(d, 'tests/hidden/x.test.ts'), '');
+    });
     const rules = (await tamperFlags({ ...plain, worktree: repo.dir, baseSha: repo.sha, hiddenDest: 'tests/hidden' })).map((x) => x.rule);
     expect(rules).toContain('config_write');
     expect(rules).toContain('hidden_path_write');
@@ -67,20 +87,21 @@ describe('tamperFlags', () => {
 
   it('flags a rewritten package.json test script but not an added dependency', async () => {
     const pkg = (test: string, extra = '') => `{"name":"x",${extra}"scripts":{"test":"${test}","build":"tsc"}}`;
-    const repo = await makeRepo({ 'package.json': pkg('vitest run') });
-    writeFileSync(join(repo.dir, 'package.json'), pkg('exit 0'));
+    const repo = await agentRepo({ 'package.json': pkg('vitest run') }, (d) => writeFileSync(join(d, 'package.json'), pkg('exit 0')));
     const f = await tamperFlags({ ...plain, worktree: repo.dir, baseSha: repo.sha });
     expect(f.map((x) => x.rule)).toEqual(['config_write']);
     expect(f[0]!.detail).toContain('scripts.test');
 
-    const honest = await makeRepo({ 'package.json': pkg('vitest run') });
-    writeFileSync(join(honest.dir, 'package.json'), pkg('vitest run', '"dependencies":{"zod":"^3"},'));
+    const honest = await agentRepo({ 'package.json': pkg('vitest run') }, (d) =>
+      writeFileSync(join(d, 'package.json'), pkg('vitest run', '"dependencies":{"zod":"^3"},')),
+    );
     expect(await tamperFlags({ ...plain, worktree: honest.dir, baseSha: honest.sha })).toEqual([]);
   });
 
   it('survives a package.json the agent broke', async () => {
-    const repo = await makeRepo({ 'package.json': '{"scripts":{"test":"vitest run"}}' });
-    writeFileSync(join(repo.dir, 'package.json'), 'not json at all');
+    const repo = await agentRepo({ 'package.json': '{"scripts":{"test":"vitest run"}}' }, (d) =>
+      writeFileSync(join(d, 'package.json'), 'not json at all'),
+    );
     expect(await tamperFlags({ ...plain, worktree: repo.dir, baseSha: repo.sha })).toEqual([]);
   });
 });

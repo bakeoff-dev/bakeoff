@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { TamperFlag } from '@contract';
 import { exec, must, type Exec } from '../exec';
 import { NAMES } from '../names';
@@ -85,21 +83,20 @@ export interface TamperInput {
 }
 
 /**
- * Rules 1-5 of SPEC section 4, over `git diff <baseSha>` of the agent branch plus
- * untracked files. Any flag costs the agent 25 points once.
+ * Rules 1-5 of SPEC section 4, over `git diff <baseSha>..HEAD` of the agent branch.
+ * Bakeoff commits any leftovers before scoring, so HEAD is the agent's complete work,
+ * while the working tree also holds files the scorer itself put there -- restored tests
+ * and copied hidden tests -- which would otherwise be flagged against the agent.
+ * Any flag costs the agent 25 points once.
  */
 export async function tamperFlags(o: TamperInput, run: Exec = exec): Promise<TamperFlag[]> {
   const flags: TamperFlag[] = [];
-  const status = await must('git', ['diff', '--name-status', o.baseSha], { cwd: o.worktree }, run);
-  const untracked = (await must('git', ['ls-files', '--others', '--exclude-standard'], { cwd: o.worktree }, run))
-    .split('\n')
-    .filter(Boolean);
+  const status = await must('git', ['diff', '--name-status', `${o.baseSha}..HEAD`], { cwd: o.worktree }, run);
   const changed = parseNameStatus(status);
-  for (const f of untracked) changed.push({ st: 'A', path: f, from: f });
   const hiddenDest = o.hiddenDest?.replace(/\/+$/, '') ?? null;
 
-  const showAtBase = async (path: string): Promise<string | null> => {
-    const r = await run('git', ['show', `${o.baseSha}:${path}`], { cwd: o.worktree });
+  const show = async (ref: string, path: string): Promise<string | null> => {
+    const r = await run('git', ['show', `${ref}:${path}`], { cwd: o.worktree });
     return r.code === 0 ? r.stdout : null;
   };
 
@@ -109,8 +106,8 @@ export async function tamperFlags(o: TamperInput, run: Exec = exec): Promise<Tam
       flags.push({ rule: 'hidden_path_write', file: path, detail: 'wrote into hidden test destination' });
     }
     if (path === 'package.json' && st === 'M') {
-      const before = parseScripts((await showAtBase('package.json')) ?? '');
-      const after = parseScripts(existsSync(join(o.worktree, 'package.json')) ? readFileSync(join(o.worktree, 'package.json'), 'utf8') : '');
+      const before = parseScripts((await show(o.baseSha, 'package.json')) ?? '');
+      const after = parseScripts((await show('HEAD', 'package.json')) ?? '');
       if (before && after) {
         for (const k of GUARDED_SCRIPTS) {
           if ((before.scripts?.[k] ?? '') !== (after.scripts?.[k] ?? '')) {
@@ -131,8 +128,8 @@ export async function tamperFlags(o: TamperInput, run: Exec = exec): Promise<Tam
     }
     if (!isTestFile(path, o.testPaths)) continue;
 
-    const after = existsSync(join(o.worktree, path)) ? readFileSync(join(o.worktree, path), 'utf8') : '';
-    const before = (await showAtBase(st === 'R' ? from : path)) ?? '';
+    const after = (await show('HEAD', path)) ?? '';
+    const before = (await show(o.baseSha, st === 'R' ? from : path)) ?? '';
     for (const l of after.split('\n').filter((l) => !before.includes(l))) {
       if (SKIP_PATTERNS.some((re) => re.test(l))) {
         flags.push({ rule: 'test_skipped', file: path, detail: l.trim().slice(0, 80) });
