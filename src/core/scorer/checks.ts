@@ -71,15 +71,29 @@ export interface BaselineInput {
   repoRoot: string;
   baseSha: string;
   runId: string;
-  config: { test?: string; lint?: string; typecheck?: string };
+  /** `setup` is the optional install step; the rest are the scored commands. */
+  config: { test?: string; lint?: string; typecheck?: string; setup?: string };
 }
 
-/** Runs the configured checks on a throwaway worktree at base sha. */
-export async function computeBaseline(o: BaselineInput, run: Exec = exec): Promise<Baseline> {
+/**
+ * Baseline plus, when the install step failed, the reason. The extra key is absent on the
+ * happy path and dropped by `BaselineSchema` on read, so the run record keeps its shape.
+ */
+export type BaselineResult = Baseline & { setupError?: string };
+
+/** Runs setup and then the configured checks on a throwaway worktree at base sha. */
+export async function computeBaseline(o: BaselineInput, run: Exec = exec): Promise<BaselineResult> {
   const dir = worktreeDir(o.runId, 'baseline');
   const branch = `bakeoff-baseline-${o.runId}`;
   await createWorktree({ repoRoot: o.repoRoot, baseSha: o.baseSha, branch, dir }, run);
   try {
+    if (o.config.setup) {
+      const setup = await runCheck(o.config.setup, dir);
+      // Without its dependencies the repo cannot be judged green or unknown, only red.
+      if (!setup.green) {
+        return { testsGreen: false, lintGreen: false, typecheckGreen: false, setupError: `setup failed (exit ${setup.exitCode})` };
+      }
+    }
     const go = async (cmd?: string) => (cmd ? (await runCheck(cmd, dir)).green : null);
     return {
       testsGreen: await go(o.config.test),

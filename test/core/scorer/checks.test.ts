@@ -59,4 +59,26 @@ describe('computeBaseline', () => {
     });
     expect(b).toEqual({ testsGreen: true, lintGreen: false, typecheckGreen: null });
   });
+
+  it('runs setup in the baseline worktree before the checks', async () => {
+    const repo = await makeRepo({ 'a.txt': 'a' });
+    const b = await computeBaseline({
+      repoRoot: repo.dir,
+      baseSha: repo.sha,
+      runId: 'base-setup',
+      config: { setup: 'touch installed', test: 'test -f installed' },
+    });
+    expect(b).toEqual({ testsGreen: true, lintGreen: null, typecheckGreen: null });
+  });
+
+  it('fails every check when setup fails, and says why', async () => {
+    const repo = await makeRepo({ 'a.txt': 'a' });
+    const b = await computeBaseline({
+      repoRoot: repo.dir,
+      baseSha: repo.sha,
+      runId: 'base-setup-red',
+      config: { setup: 'exit 3', test: 'true', typecheck: 'true' },
+    });
+    expect(b).toEqual({ testsGreen: false, lintGreen: false, typecheckGreen: false, setupError: 'setup failed (exit 3)' });
+  });
 });
