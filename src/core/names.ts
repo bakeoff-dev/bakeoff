@@ -15,9 +15,10 @@ export const NAMES = {
 } as const;
 
 export const TESTED_VERSIONS = {
-  claude: '2.1.259',
-  codex: '0.153.0',
-  opencode: '1.18.27',
+  claude: '2.1.263',
+  codex: '0.156.0',
+  gemini: '0.60.0',
+  cursor: '2026.09.02-c22c1a3',
 } as const;
 
 export function branchName(issue: number, driver: string, runId: string): string {

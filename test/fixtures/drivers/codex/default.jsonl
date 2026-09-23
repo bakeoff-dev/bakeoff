@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"01a0cc06-8a31-7690-8ee9-55944d74d702"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll create `hello.txt` with exactly `pong` and stop."}}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc \"printf 'pong' > hello.txt\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc \"printf 'pong' > hello.txt\"","aggregated_output":"","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"Created [hello.txt](/var/folders/31/1kkfjcys3hb57w23bzn71bs80000gn/T/tmp.pmnzjujj5O/hello.txt) containing `pong`."}}
+{"type":"turn.completed","usage":{"input_tokens":31347,"cached_input_tokens":26112,"cache_write_input_tokens":0,"output_tokens":110,"reasoning_output_tokens":0}}

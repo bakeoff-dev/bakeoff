@@ -8,6 +8,7 @@ const META = {
   codex: { name: 'Codex', color: '#5EC8CE' },
   opencode: { name: 'OpenCode', color: '#E58BC7' },
   gemini: { name: 'Gemini CLI', color: '#9BCB6E' },
+  cursor: { name: 'Cursor', color: '#A99BF0' },
 } satisfies Record<RunRecord['agents'][number]['driver'], { name: string; color: string }>;
 
 const MUTED = 'rgba(255,255,255,.55)';

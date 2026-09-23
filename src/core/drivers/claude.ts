@@ -3,12 +3,17 @@ import type { Caps, TokenUsage } from '@contract';
 import { exec } from '../exec';
 import { runProcess } from '../process';
 import type { CacheWriteSplit } from '../budget';
-import { addTokens, helpHasFlags, type AgentEvent, type Driver, type LaunchInput, type LaunchResult } from './types';
+import {
+  addTokens, agentStatus, createUsageLedger, dominantModel, helpHasFlags, normalizeModel,
+  type AgentEvent, type Driver, type LaunchInput, type LaunchResult, type ModelShare,
+} from './types';
 
 export interface ClaudeResult {
   costUsd: number | null;
   tokens: TokenUsage | null;
   isError: boolean;
+  /** The CLI stopped itself on --max-budget-usd: a spend limit, not a crash. */
+  budgetStop: boolean;
   durationMs: number | null;
   /** Model the result envelope attributes most of the output to; null if it says nothing. */
   model: string | null;
@@ -85,18 +90,13 @@ function actionText(name: string, input: Record<string, unknown>): string {
  * breakdown: whichever produced the most output. `canonicalModel` is preferred over
  * the key so a context-window suffix (`claude-opus-5[1m]`) does not split the ladder.
  */
-function dominantModel(modelUsage: unknown): string | null {
-  let best: string | null = null;
-  let bestOutput = -1;
-  for (const [key, value] of Object.entries(obj(modelUsage))) {
+function claudeModelShares(modelUsage: unknown): ModelShare[] {
+  return Object.entries(obj(modelUsage)).map(([key, value]) => {
     const v = obj(value);
     const output = num(v.outputTokens);
-    if (output > bestOutput) {
-      bestOutput = output;
-      best = str(v.canonicalModel) || key;
-    }
-  }
-  return best;
+    // canonicalModel drops the context-window suffix, e.g. claude-opus-5[1m].
+    return { model: str(v.canonicalModel) || key, output, total: output + num(v.inputTokens) };
+  });
 }
 
 /** Every field access is guarded: the envelope is untrusted and its shape churns between versions. */
@@ -141,7 +141,7 @@ export function parseClaudeLine(line: string): ParsedLine {
     // A Task subagent carries a parent id and may run on a different model. Its usage
     // still costs money and is still metered above, but it must not rename the race.
     const topLevel = o.parent_tool_use_id === undefined || o.parent_tool_use_id === null;
-    const model = topLevel ? str(msg.model) : '';
+    const model = topLevel && str(msg.model) ? normalizeModel(str(msg.model)) : '';
     const extra = { ...(messageId ? { messageId } : {}), ...(model ? { model } : {}) };
     return { events, result: null, ...extra };
   }
@@ -155,8 +155,9 @@ export function parseClaudeLine(line: string): ParsedLine {
         costUsd,
         tokens: usageFrom(o.usage),
         isError: o.is_error === true,
+        budgetStop: str(o.subtype).startsWith('error_max_budget'),
         durationMs: typeof o.duration_ms === 'number' ? o.duration_ms : null,
-        model: dominantModel(o.modelUsage),
+        model: dominantModel(claudeModelShares(o.modelUsage)),
       },
     };
   }
@@ -190,7 +191,7 @@ export function probeAuthOk(stdout: string): boolean {
  * Counting each message id once turns those repeats back into per-message deltas.
  */
 export function createClaudeStream(): { push(line: string): ParsedLine; model(): string | null } {
-  const metered = new Set<string>();
+  const ledger = createUsageLedger();
   let observed: string | null = null;
   let fromResult: string | null = null;
   return {
@@ -200,11 +201,13 @@ export function createClaudeStream(): { push(line: string): ParsedLine; model():
       if (parsed.result?.model) fromResult = parsed.result.model;
       const id = parsed.messageId;
       if (!id) return parsed;
-      if (metered.has(id)) {
-        return { ...parsed, events: parsed.events.filter((e) => e.kind !== 'usage') };
-      }
-      metered.add(id);
-      return parsed;
+      // Every content block repeats the message's running totals; bill only the growth.
+      const events: AgentEvent[] = parsed.events.flatMap((e): AgentEvent[] => {
+        if (e.kind !== 'usage') return [e];
+        const d = ledger.delta(id, e.tokens, e.cacheWrite);
+        return d === null ? [] : [{ ...e, tokens: d.tokens, cacheWrite: d.cacheWrite }];
+      });
+      return { ...parsed, events };
     },
     /**
      * The result envelope is authoritative when the run reached one; a timeout or
@@ -278,8 +281,7 @@ export const claudeDriver: Driver = {
       },
     });
     const res = result as ClaudeResult | null;
-    const status =
-      r.status === 'ok' && res?.isError ? 'crashed' : r.status === 'aborted' ? 'crashed' : r.status;
+    const status = agentStatus(r.status, res);
     return {
       exitCode: r.exitCode,
       status,

@@ -1,10 +1,10 @@
 import type { AgentStatus, DriverId, TokenUsage } from '@contract';
 
 export const DRIVER_NAME: Record<DriverId, string> = {
-  claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', gemini: 'Gemini CLI',
+  claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', gemini: 'Gemini CLI', cursor: 'Cursor',
 };
 export const DRIVER_HEX: Record<DriverId, string> = {
-  claude: '#F59E6B', codex: '#5EC8CE', opencode: '#E58BC7', gemini: '#9BCB6E',
+  claude: '#F59E6B', codex: '#5EC8CE', opencode: '#E58BC7', gemini: '#9BCB6E', cursor: '#A99BF0',
 };
 export const STATUS_HEX: Record<AgentStatus, string> = {
   running: '#60A5FA', ok: '#4ADE80', crashed: '#F87171', timeout: '#F87171', budget_exceeded: '#F87171',

@@ -28,9 +28,15 @@ describe('parseAgentSpec', () => {
     expect(parseAgentSpec('  claude : claude-opus-5 ')).toEqual({ driver: 'claude', model: 'claude-opus-5' });
   });
 
+  it('accepts every driver the registry ships', () => {
+    for (const id of ['claude', 'codex', 'gemini', 'cursor']) {
+      expect(parseAgentSpec(id).driver).toBe(id);
+    }
+  });
+
   it('rejects an unknown driver', () => {
-    expect(() => parseAgentSpec('cursor')).toThrow(/cursor/);
-    expect(() => parseAgentSpec('cursor:some-model')).toThrow(/cursor/);
+    expect(() => parseAgentSpec('aider')).toThrow(/aider/);
+    expect(() => parseAgentSpec('aider:some-model')).toThrow(/aider/);
   });
 
   it('rejects an empty model after the colon', () => {

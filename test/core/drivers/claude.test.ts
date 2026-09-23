@@ -125,11 +125,12 @@ describe('cost metering against a recorded race', () => {
     }
   };
 
-  it('meters within a cent of what the run really cost', () => {
+  it('takes the exact cost from the result line at exit, overwriting the estimate', () => {
+    // Not a metering assertion: setCost replaces whatever the running estimate was,
+    // so this pins the precedence, not the arithmetic. The estimate is tested below.
     const meter = defaultMeter(10);
     replayInto(meter);
-    expect(meter.costUsd).not.toBeNull();
-    expect(Math.abs((meter.costUsd ?? 0) - REAL_COST)).toBeLessThan(0.05);
+    expect(meter.costUsd).toBe(0.6509539999999999);
   });
 
   it('no longer overestimates the live running cost', () => {

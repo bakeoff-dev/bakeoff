@@ -7,7 +7,7 @@ import { z } from 'zod';
  */
 export const SCHEMA_VERSION = 2 as const;
 
-export const DriverIdSchema = z.enum(['claude', 'codex', 'opencode', 'gemini']); // gemini: schema slot only in v1
+export const DriverIdSchema = z.enum(['claude', 'codex', 'opencode', 'gemini', 'cursor']); // opencode: schema slot, no driver yet
 export const AgentStatusSchema = z.enum(['running', 'ok', 'timeout', 'crashed', 'budget_exceeded']);
 export const ComponentIdSchema = z.enum(['visible_tests', 'hidden_tests', 'typecheck', 'lint', 'ci', 'diff', 'judge']);
 export const TamperRuleSchema = z.enum(['test_deleted', 'test_skipped', 'asserts_weakened', 'config_write', 'hidden_path_write']);
