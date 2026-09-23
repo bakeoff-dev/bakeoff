@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship `bakeoff-cli`: race Claude Code, Codex, and OpenCode on a real GitHub issue in the user's repo, open competing PRs, score them deterministically with tamper detection, keep a per-repo OpenSkill ladder, and render a terminal table, a static HTML scoreboard, and a PNG share card.
+**Goal:** Ship `bakeoff-cli`: race Claude Code, Codex, Gemini CLI and cursor-agent on a real GitHub issue in the user's repo, open competing PRs, score them deterministically with tamper detection, keep a per-repo OpenSkill ladder, and render a terminal table, a static HTML scoreboard, and a PNG share card.
 
-**Architecture:** One Bun/TypeScript package. `src/contract/` defines the run record, race events, and a reducer that both the CLI and the React UI consume. `src/core/` does the work (config, git worktrees, drivers, process control, scoring, ladder). `src/cli/` is commander plus a Bun.serve SSE server. `ui/` is a Vite single-file React app embedded by the CLI. Every agent subprocess goes through one `runProcess` that owns timeout, budget trip, and process-group kill.
+**Architecture:** One TypeScript package that ships for Node >= 22; Bun is the build and test toolchain only, and nothing in `src/` may use a Bun API. `src/contract/` defines the run record, race events, and a reducer that both the CLI and the React UI consume. `src/core/` does the work (config, git worktrees, drivers, process control, scoring, ladder). `src/cli/` is commander plus a `node:http` SSE server. `ui/` is a Vite single-file React app embedded by the CLI. Every agent subprocess goes through one `runProcess` that owns timeout, budget trip, and process-group kill.
 
-**Tech Stack:** Bun 1.3, TypeScript 5, commander 15, @clack/prompts 1.7, zod, yaml, openskill 5, satori 0.33, @resvg/resvg-js 2.6, Vite 6, React 19, vite-plugin-singlefile 2.3, vitest. UI styling is plain CSS-in-JS style objects copied from the design handoff; no Tailwind.
+**Tech Stack:** Node 22 at runtime, Bun 1.3 as the toolchain, TypeScript 5, commander 15, @clack/prompts 1.7, zod, yaml, openskill 5, satori 0.33, @resvg/resvg-js 2.6, Vite 6, React 19, vite-plugin-singlefile 2.3, vitest. UI styling is plain CSS-in-JS style objects copied from the design handoff; no Tailwind.
 
 **Spec:** `SPEC.md` (this repo root).
 
@@ -96,13 +96,15 @@ If the org does not exist yet, create it in the GitHub UI first (Settings > Orga
 
 ### Task 1: Scaffold the package
 
+> **Done** in `c2a372f`, a direct commit before the PR flow started. Deviation: [#21](https://github.com/bakeoff-dev/bakeoff/pull/21) retargeted the package at Node 22, so `engines` is `node >= 22`, `build:cli` runs `scripts/build-cli.ts`, and `files` is `dist`, `README.md`, `LICENSE`.
+
 **Files:**
 - Create: `package.json`, `tsconfig.json`, `vitest.config.ts`, `.gitignore`, `src/core/names.ts`, `test/core/names.test.ts`
 
 **Interfaces:**
 - Produces: `NAMES` constant consumed by every later task.
 
-- [ ] **Step 1: Write package.json**
+- [x] **Step 1: Write package.json**
 
 ```json
 {
@@ -147,7 +149,7 @@ If the org does not exist yet, create it in the GitHub UI first (Settings > Orga
 }
 ```
 
-- [ ] **Step 2: Write tsconfig.json and vitest.config.ts**
+- [x] **Step 2: Write tsconfig.json and vitest.config.ts**
 
 ```json
 {
@@ -181,7 +183,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 3: Write .gitignore**
+- [x] **Step 3: Write .gitignore**
 
 ```
 node_modules/
@@ -192,7 +194,7 @@ dist/
 .DS_Store
 ```
 
-- [ ] **Step 4: Write the failing names test**
+- [x] **Step 4: Write the failing names test**
 
 ```ts
 // test/core/names.test.ts
@@ -210,12 +212,12 @@ describe('names', () => {
 });
 ```
 
-- [ ] **Step 5: Run it to verify it fails**
+- [x] **Step 5: Run it to verify it fails**
 
 Run: `bun install && bun test test/core/names.test.ts`
 Expected: FAIL, cannot find module `src/core/names`.
 
-- [ ] **Step 6: Write names.ts**
+- [x] **Step 6: Write names.ts**
 
 ```ts
 // src/core/names.ts
@@ -247,12 +249,12 @@ export function runLabel(runId: string): string {
 }
 ```
 
-- [ ] **Step 7: Run tests and typecheck**
+- [x] **Step 7: Run tests and typecheck**
 
 Run: `bun test && bun run typecheck`
 Expected: 1 passed, tsc clean.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A && git commit -m "chore: scaffold bakeoff-cli package"
@@ -262,13 +264,15 @@ git add -A && git commit -m "chore: scaffold bakeoff-cli package"
 
 ### Task 2: Contract schemas and the run fixture
 
+> **Done** in `2639ac2`, a direct commit before the PR flow started. Deviation: `SCHEMA_VERSION` is 2 since [#9](https://github.com/bakeoff-dev/bakeoff/pull/9); later PRs added fields additively and fill them on read in `src/contract/migrate.ts`.
+
 **Files:**
 - Create: `src/contract/schema.ts`, `src/contract/index.ts`, `src/contract/fixtures/run.json`, `test/contract/schema.test.ts`
 
 **Interfaces:**
 - Produces: every type in SPEC.md section 6 as zod schemas plus `z.infer` types: `DriverId`, `AgentStatus`, `ComponentId`, `TokenUsage`, `Caps`, `ScoreComponent`, `TamperFlag`, `ScoreBreakdown`, `AgentResult`, `Baseline`, `RunRecord`, `RaceEvent`, `LadderEntry`, `Ladder`. Also `SCHEMA_VERSION`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/contract/schema.test.ts
@@ -297,12 +301,12 @@ describe('contract fixture', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bun test test/contract`
 Expected: FAIL, cannot find module.
 
-- [ ] **Step 3: Write schema.ts**
+- [x] **Step 3: Write schema.ts**
 
 ```ts
 // src/contract/schema.ts
@@ -423,7 +427,7 @@ export * from './reducer';
 
 (`reducer.ts` arrives in Task 3; until then create it as `export {};` so the index compiles.)
 
-- [ ] **Step 4: Write fixtures/run.json**
+- [x] **Step 4: Write fixtures/run.json**
 
 Component maxes for this fixture: test configured, typecheck configured, lint not (so typecheck max 15, lint max 0), no hidden tests, no CI, no judge. `maxPossible` = 50 + 15 + 10 = 75. Diff discipline: finishers claude (L=22) and codex (L=20), median 21, consensus set = files touched by both = `src/paginate.ts`, `test/paginate.test.ts`.
 
@@ -494,12 +498,12 @@ Component maxes for this fixture: test configured, typecheck configured, lint no
 }
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `bun test test/contract && bun run typecheck`
 Expected: 2 passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat(contract): run record, race event, ladder schemas + fixture"
@@ -509,6 +513,8 @@ git add -A && git commit -m "feat(contract): run record, race event, ladder sche
 
 ### Task 3: Reducer and the events fixture
 
+> **Done** in `2639ac2` (reducer) and `1fa2bc2` (fixture), direct commits before the PR flow started. Deviation: `events.jsonl` is generated from `run.json` by `scripts/gen-events-fixture.ts` rather than hand-written, so the two fixtures cannot drift.
+
 **Files:**
 - Create: `src/contract/reducer.ts`, `src/contract/fixtures/events.jsonl`, `test/contract/reducer.test.ts`
 
@@ -516,7 +522,7 @@ git add -A && git commit -m "feat(contract): run record, race event, ladder sche
 - Consumes: schemas from Task 2.
 - Produces: `RaceState`, `AgentLane`, `initialState`, `applyEvent(state, event): RaceState`, `reduceEvents(events): RaceState`, `parseEventLines(text): RaceEvent[]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/contract/reducer.test.ts
@@ -558,12 +564,12 @@ describe('reducer', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bun test test/contract/reducer.test.ts`
 Expected: FAIL.
 
-- [ ] **Step 3: Write reducer.ts**
+- [x] **Step 3: Write reducer.ts**
 
 ```ts
 // src/contract/reducer.ts
@@ -621,7 +627,7 @@ export function parseEventLines(text: string): RaceEvent[] {
 }
 ```
 
-- [ ] **Step 4: Write fixtures/events.jsonl**
+- [x] **Step 4: Write fixtures/events.jsonl**
 
 One JSON object per line. The last line's `record` must be byte-for-byte the object in `run.json` (copy it in). Write it with this script so it cannot drift:
 
@@ -649,12 +655,12 @@ await Bun.write("src/contract/fixtures/events.jsonl", ev.map(e=>JSON.stringify(e
 '
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `bun test test/contract && bun run typecheck`
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat(contract): race reducer + events fixture"
@@ -663,6 +669,8 @@ git add -A && git commit -m "feat(contract): race reducer + events fixture"
 ---
 
 ### Task 4: Config loader
+
+> **Done** in [#3](https://github.com/bakeoff-dev/bakeoff/pull/3). Deviation: [#16](https://github.com/bakeoff-dev/bakeoff/pull/16) added the `setup:` key, and [#20](https://github.com/bakeoff-dev/bakeoff/pull/20) made config load reject glob characters in `test_paths`.
 
 **Files:**
 - Create: `src/core/config.ts`, `test/core/config.test.ts`
@@ -791,6 +799,8 @@ git add -A && git commit -m "feat(core): bakeoff.yml loader"
 
 ### Task 5: Store (`.bakeoff/` layout, run ids, events)
 
+> **Done** in [#3](https://github.com/bakeoff-dev/bakeoff/pull/3). Deviation: reads go through `src/contract/migrate.ts` ([#9](https://github.com/bakeoff-dev/bakeoff/pull/9)) so v1 run records and ladders survive the schema bump.
+
 **Files:**
 - Create: `src/core/store.ts`, `test/core/store.test.ts`
 
@@ -915,6 +925,8 @@ git add -A && git commit -m "feat(core): .bakeoff store"
 ---
 
 ### Task 6: exec, repo detection, issue fetching
+
+> **Done** in [#3](https://github.com/bakeoff-dev/bakeoff/pull/3), as planned.
 
 **Files:**
 - Create: `src/core/exec.ts`, `src/core/repo.ts`, `src/core/issue.ts`, `test/helpers/exec.ts`, `test/core/repo.test.ts`, `test/core/issue.test.ts`
@@ -1107,6 +1119,8 @@ git add -A && git commit -m "feat(core): exec wrapper, repo detection, issue fet
 
 ### Task 7: Task packet builder
 
+> **Done** in [#3](https://github.com/bakeoff-dev/bakeoff/pull/3), as planned.
+
 **Files:**
 - Create: `src/core/packet.ts`, `test/core/packet.test.ts`
 
@@ -1214,6 +1228,8 @@ git add -A && git commit -m "feat(core): task packet builder"
 ---
 
 ### Task 8: Process control with group kill
+
+> **Done** in [#3](https://github.com/bakeoff-dev/bakeoff/pull/3), as planned.
 
 **Files:**
 - Create: `src/core/process.ts`, `src/core/budget.ts`, `test/core/process.test.ts`
@@ -1398,6 +1414,8 @@ git add -A && git commit -m "feat(core): runProcess with process-group kill, tim
 
 ### Task 9: Pricing table
 
+> **Done** in [#3](https://github.com/bakeoff-dev/bakeoff/pull/3). Deviation: [#7](https://github.com/bakeoff-dev/bakeoff/pull/7) priced 1-hour cache writes at 2x input rather than 1.25x, which is what Anthropic actually charges.
+
 **Files:**
 - Create: `src/core/pricing.json`, `src/core/pricing.ts`, `test/core/pricing.test.ts`
 
@@ -1492,6 +1510,8 @@ git add -A && git commit -m "feat(core): model pricing table"
 ---
 
 ### Task 10: Worktrees
+
+> **Done** in [#3](https://github.com/bakeoff-dev/bakeoff/pull/3), as planned.
 
 **Files:**
 - Create: `src/core/worktree.ts`, `test/helpers/repo.ts`, `test/core/worktree.test.ts`
@@ -1609,6 +1629,8 @@ git add -A && git commit -m "feat(core): worktree create/remove, strips .bakeoff
 ---
 
 ### Task 11: Driver interface, registry, doctor command
+
+> **Done** in [#3](https://github.com/bakeoff-dev/bakeoff/pull/3). Deviation: [#14](https://github.com/bakeoff-dev/bakeoff/pull/14) made `doctor` default to every registered driver and probe them in parallel.
 
 **Files:**
 - Create: `src/core/drivers/types.ts`, `src/core/drivers/registry.ts`, `src/cli/commands/doctor.ts`, `src/cli/index.ts`, `test/core/drivers/registry.test.ts`
@@ -1774,6 +1796,8 @@ git add -A && git commit -m "feat: driver interface, registry, doctor command"
 # Day 2: Claude driver, publish, orchestrator, first real PR
 
 ### Task 12: Claude Code driver
+
+> **Done** in [#6](https://github.com/bakeoff-dev/bakeoff/pull/6). Deviation: `--max-turns` does not exist in Claude Code 2.1.x so `maxTurns` is ignored; [#7](https://github.com/bakeoff-dev/bakeoff/pull/7) deduplicated per-message usage and fixed the token sum; [#14](https://github.com/bakeoff-dev/bakeoff/pull/14) moved the launch to `--permission-mode bypassPermissions` for parity.
 
 **Files:**
 - Create: `src/core/drivers/claude.ts`, `test/fixtures/drivers/claude/stream.jsonl`, `test/core/drivers/claude.test.ts`
@@ -1964,6 +1988,8 @@ git add -A && git commit -m "feat(drivers): Claude Code driver with stream-json 
 
 ### Task 13: Publish (commit, push, PR)
 
+> **Done** in [#6](https://github.com/bakeoff-dev/bakeoff/pull/6), as planned.
+
 **Files:**
 - Create: `src/core/publish.ts`, `test/core/publish.test.ts`
 
@@ -2063,6 +2089,8 @@ git add -A && git commit -m "feat(core): commit leftovers, push, labels, gh pr c
 ---
 
 ### Task 14: Race orchestrator (no scoring yet)
+
+> **Done** in [#6](https://github.com/bakeoff-dev/bakeoff/pull/6). Deviation: scoring, CI polling and the ladder were wired into `defaultDeps` later, in [#16](https://github.com/bakeoff-dev/bakeoff/pull/16).
 
 **Files:**
 - Create: `src/core/race.ts`, `test/core/race.test.ts`
@@ -2296,6 +2324,8 @@ git add -A && git commit -m "feat(core): race orchestrator with events, publish,
 ---
 
 ### Task 15: `bakeoff run` + `bakeoff init`, first real PR (day-2 milestone)
+
+> **Done** in [#6](https://github.com/bakeoff-dev/bakeoff/pull/6). Deviation: [#7](https://github.com/bakeoff-dev/bakeoff/pull/7) fixed the live redraw and the token meter; [#18](https://github.com/bakeoff-dev/bakeoff/pull/18) made `init` write the `hidden_tests` block and `.bakeoff/hidden/README`.
 
 **Files:**
 - Create: `src/cli/commands/run.ts`, `src/cli/commands/init.ts`, `src/cli/render/style.ts`, `src/cli/render/progress.ts`, `test/cli/style.test.ts`
@@ -2564,6 +2594,8 @@ git add -A && git commit -m "feat(cli): run and init commands; first real PR"
 
 ### Task 16: Codex driver
 
+> **Done** in [#13](https://github.com/bakeoff-dev/bakeoff/pull/13), the driver pass that replaced this task. Deviation: the prompt goes on stdin (passed in argv, Codex blocks waiting for stdin to close), the launch uses `--sandbox danger-full-access` for parity, fixtures are `test/fixtures/drivers/codex/{default,with-model,model-rejected}.jsonl`, and the tests live in `test/core/drivers/pass.test.ts`.
+
 **Files:**
 - Create: `src/core/drivers/codex.ts`, `test/fixtures/drivers/codex/events.jsonl`, `test/core/drivers/codex.test.ts`
 - Modify: `src/core/drivers/index.ts`
@@ -2571,7 +2603,7 @@ git add -A && git commit -m "feat(cli): run and init commands; first real PR"
 **Interfaces:**
 - Produces: `codexDriver: Driver`, `codexArgs(i: { worktree: string }): string[]`, `parseCodexLine(line): { events: AgentEvent[]; done: boolean }`.
 
-- [ ] **Step 1: Install and record a fixture**
+- [x] **Step 1: Install and record a fixture**
 
 ```bash
 npm i -g @openai/codex@0.153.0 && codex --version && codex exec --help | grep -E -- '--json|--full-auto|--ephemeral|--skip-git-repo-check|-C|--output-last-message'
@@ -2584,7 +2616,7 @@ cut -c1-200 test/fixtures/drivers/codex/events.jsonl
 
 Confirm which lines carry (a) a file change or command execution item, and (b) token usage (`turn.completed` with `usage.input_tokens`, `usage.cached_input_tokens`, `usage.output_tokens` in 0.15x). Also confirm the model name appears in an early `thread.started` / `session` line; if it does not, read it from `codex --version` config via `codex exec --help` (`--config model=...`) and default to `gpt-5-codex`. Adjust the field names in Step 3 to match the fixture.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 ```ts
 // test/core/drivers/codex.test.ts
@@ -2612,7 +2644,7 @@ describe('codex parser', () => {
 });
 ```
 
-- [ ] **Step 3: Run to verify failure, then write codex.ts**
+- [x] **Step 3: Run to verify failure, then write codex.ts**
 
 Run: `bun test test/core/drivers/codex.test.ts` → FAIL.
 
@@ -2692,7 +2724,7 @@ export const codexDriver: Driver = {
 
 Add `registerDriver(codexDriver)` to `src/core/drivers/index.ts`.
 
-- [ ] **Step 4: Run tests, doctor, a two-agent race on scratch, commit**
+- [x] **Step 4: Run tests, doctor, a two-agent race on scratch, commit**
 
 Run: `bun test && bun run typecheck && bun run dev -- doctor`
 Then in `scratch/`: `bun run /path/to/bakeoff/src/cli/index.ts run 1 --agents claude,codex --budget 1 --timeout 5m`
@@ -2707,6 +2739,8 @@ git add -A && git commit -m "feat(drivers): Codex driver with JSONL parser + fix
 # Day 4: scorer, run record complete, terminal scoreboard
 
 ### Task 17: Check runner, test-path restore, baseline
+
+> **Done** in [#8](https://github.com/bakeoff-dev/bakeoff/pull/8). Deviation: `defaultTestPaths` reads `git ls-tree` instead of `Bun.Glob`, because nothing in `src/` may use a Bun API; [#16](https://github.com/bakeoff-dev/bakeoff/pull/16) added `Baseline.setupError`.
 
 **Files:**
 - Create: `src/core/scorer/checks.ts`, `test/core/scorer/checks.test.ts`
@@ -2814,6 +2848,8 @@ git add -A && git commit -m "feat(scorer): check runner, test restore, baseline"
 ---
 
 ### Task 18: Test components (visible + hidden) and count parser
+
+> **Done** in [#8](https://github.com/bakeoff-dev/bakeoff/pull/8), as planned.
 
 **Files:**
 - Create: `src/core/scorer/tests.ts`, `test/core/scorer/tests.test.ts`
@@ -2923,6 +2959,8 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): visi
 
 ### Task 19: Typecheck and lint components
 
+> **Done** in [#8](https://github.com/bakeoff-dev/bakeoff/pull/8), as planned.
+
 **Files:**
 - Create: `src/core/scorer/lint.ts`, `test/core/scorer/lint.test.ts`
 
@@ -2985,6 +3023,8 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): type
 ---
 
 ### Task 20: Diff stats and diff discipline
+
+> **Done** in [#8](https://github.com/bakeoff-dev/bakeoff/pull/8). Deviation: [#18](https://github.com/bakeoff-dev/bakeoff/pull/18) excluded test files and [#23](https://github.com/bakeoff-dev/bakeoff/pull/23) excluded documentation from both terms, so diff discipline counts only the product change; [#20](https://github.com/bakeoff-dev/bakeoff/pull/20) deleted the duplicate `isTestFile` here in favour of the one in `tamper.ts`.
 
 **Files:**
 - Create: `src/core/scorer/diff.ts`, `test/core/scorer/diff.test.ts`
@@ -3099,6 +3139,8 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): diff
 ---
 
 ### Task 21: Tamper detector
+
+> **Done** in [#8](https://github.com/bakeoff-dev/bakeoff/pull/8). Deviation: `tamper.ts` is now the single home of `isTestFile` and `isDocFile` for every scorer component.
 
 **Files:**
 - Create: `src/core/scorer/tamper.ts`, `test/core/scorer/tamper.test.ts`
@@ -3227,6 +3269,8 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): tamp
 
 ### Task 22: Compose scores, finalize ranks, wire into the race
 
+> **Done** in [#10](https://github.com/bakeoff-dev/bakeoff/pull/10), with the `defaultDeps` wiring finished in [#16](https://github.com/bakeoff-dev/bakeoff/pull/16). Deviation: scoring is guarded per agent, so a throw costs that agent its score and rank but never the race's final `run.json`.
+
 **Files:**
 - Create: `src/core/scorer/index.ts`, `test/core/scorer/index.test.ts`
 - Modify: `src/core/race.ts` (`defaultDeps` gets `baseline: computeBaseline`-backed function, `scoreAgent`, `finalize`)
@@ -3234,7 +3278,7 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): tamp
 **Interfaces:**
 - Produces: `scoreAgent(ctx: ScoreCtx): Promise<Pick<AgentResult,'score'|'filesTouched'|'linesAdded'|'linesRemoved'>>` (runs tests, hidden, checks, tamper; leaves `diff`, `ci`, `judge` as placeholders with `awarded: null` to be filled by finalize / later tasks), `finalizeScores(agents: AgentResult[], configured: Configured): AgentResult[]` (fills `diff`, recomputes totals + `maxPossible`, ranks), `totalOf(components, tamperPenalty): number`, `maxPossibleOf(components): number`, `rankAgents(agents): AgentResult[]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/scorer/index.test.ts
@@ -3276,7 +3320,7 @@ describe('scoreAgent', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write scorer/index.ts**
+- [x] **Step 2: Run to verify failure, then write scorer/index.ts**
 
 ```ts
 // src/core/scorer/index.ts
@@ -3344,7 +3388,7 @@ export function finalizeScores(agents: AgentResult[], _configured: Configured): 
 }
 ```
 
-- [ ] **Step 3: Wire into race.ts**
+- [x] **Step 3: Wire into race.ts**
 
 In `src/core/race.ts`, change `defaultDeps()`:
 
@@ -3361,7 +3405,7 @@ export function defaultDeps(): RaceDeps {
 
 Add `baselineGreen: boolean | null` to `ScoreCtx` and pass `baseline.testsGreen` where `runOne` builds the ctx. In `runCommand`, after the race, print a yellow warning when `rec.baseline.testsGreen === false`: `p.log.warn(\`Tests were already failing on ${rec.repo.baseSha.slice(0, 7)}; visible-test points are unreliable for this run.\`)`.
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 ```bash
 bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): compose components, finalize ranks, wire baseline"
@@ -3370,6 +3414,8 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): comp
 ---
 
 ### Task 23: Terminal scoreboard
+
+> **Done** in [#17](https://github.com/bakeoff-dev/bakeoff/pull/17). Deviation: the table also carries the model label, the `noAcceptanceTest` banner ([#18](https://github.com/bakeoff-dev/bakeoff/pull/18)) and the `Scoreboard` line ([#22](https://github.com/bakeoff-dev/bakeoff/pull/22)).
 
 **Files:**
 - Create: `src/cli/render/table.ts`, `test/cli/table.test.ts`
@@ -3476,6 +3522,8 @@ Post the first raw result.
 # Day 5: OpenCode driver, cost normalization
 
 ### Task 24: OpenCode driver
+
+> **Replaced** by [#13](https://github.com/bakeoff-dev/bakeoff/pull/13), the driver pass, which shipped Codex, Gemini and Cursor and deferred OpenCode. OpenCode has a slot in `DriverIdSchema` and a UI colour but no driver, so these steps are deliberately unticked.
 
 **Files:**
 - Create: `src/core/drivers/opencode.ts`, `test/fixtures/drivers/opencode/run.txt` (and `stats.json` if `opencode stats --json` exists), `test/core/drivers/opencode.test.ts`
@@ -3620,6 +3668,8 @@ Post the "tests don't lie" result.
 # Day 6: web UI scoreboard, static export, share PNG
 
 ### Task 25: UI scaffold with the Scoreboard screen
+
+> **Done** in [#1](https://github.com/bakeoff-dev/bakeoff/pull/1), as planned.
 
 **Files:**
 - Create: `ui/index.html`, `ui/vite.config.ts`, `ui/src/main.tsx`, `ui/src/App.tsx`, `ui/src/data.ts`, `ui/src/theme.ts`, `ui/src/screens/Scoreboard.tsx`, `ui/src/components/{WinnerSurface,OthersColumn,Breakdown,Pill,Dot}.tsx`, `ui/dev-data.ts`, `test/ui/data.test.ts`, `test/ui/theme.test.ts`
@@ -4067,6 +4117,8 @@ git add -A && git commit -m "feat(ui): vite single-file app with scoreboard scre
 
 ### Task 26: Static HTML export
 
+> **Done** in [#22](https://github.com/bakeoff-dev/bakeoff/pull/22). Deviation: the code is `src/cli/scoreboard.ts` plus `src/cli/commands/export.ts`, not `src/cli/export.ts`; `injectBootstrap`/`renderScoreboard`/`exportScoreboard` replace `injectData`/`uiTemplate`/`exportRun`; the template is found by `src/render/assets.ts` ([#21](https://github.com/bakeoff-dev/bakeoff/pull/21)); and `renderScoreboard` takes an optional template so tests never read `dist/`.
+
 **Files:**
 - Create: `src/cli/export.ts`, `test/cli/export.test.ts`
 - Modify: `src/cli/commands/run.ts` (write html after the race), `src/cli/index.ts` (`bakeoff export <id>` for re-rendering)
@@ -4074,7 +4126,7 @@ git add -A && git commit -m "feat(ui): vite single-file app with scoreboard scre
 **Interfaces:**
 - Produces: `injectData(html: string, bootstrap: Bootstrap): string` (replaces `<!--BAKEOFF_DATA-->` with the JSON script tag, escaping `</script>` as `<\/script>`), `uiTemplate(): string` (reads `dist/ui.html` next to the built CLI, or `../../dist/ui.html` from source), `exportRun(repoRoot, runId): string` (path written).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/cli/export.test.ts
@@ -4095,7 +4147,7 @@ describe('injectData', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write export.ts**
+- [x] **Step 2: Run to verify failure, then write export.ts**
 
 ```ts
 // src/cli/export.ts
@@ -4127,7 +4179,7 @@ export function exportRun(repoRoot: string, runId: string): string {
 
 In `run.ts` after the race: `const html = exportRun(repo.root, runId);` then `console.log(renderScoreboard(rec, { htmlPath: relative(repo.root, html), opened: !!opts.watch }))` (replace the earlier call). Add `program.command('export <id>').action((id) => console.log(exportRun(detectRoot(), id)))` where `detectRoot` is `must('git', ['rev-parse','--show-toplevel'])`.
 
-- [ ] **Step 3: Run tests, export the last scratch run, open it, commit**
+- [x] **Step 3: Run tests, export the last scratch run, open it, commit**
 
 ```bash
 bun test && bun run typecheck && bun run build:ui
@@ -4139,6 +4191,8 @@ git add -A && git commit -m "feat(cli): static html scoreboard export"
 
 ### Task 27: Share PNG card
 
+> **Done** in [#2](https://github.com/bakeoff-dev/bakeoff/pull/2) (renderer and fonts), with `bakeoff share [id]` registered in [#17](https://github.com/bakeoff-dev/bakeoff/pull/17). Deviation: [#21](https://github.com/bakeoff-dev/bakeoff/pull/21) ships the fonts to `dist/fonts` through the build rather than listing `src/render/fonts` in `files`, and `share` defaults to the latest run.
+
 **Files:**
 - Create: `src/render/card.tsx`, `src/render/fonts.ts`, `src/cli/commands/share.ts`, `test/render/card.test.ts`
 - Modify: `src/cli/index.ts`
@@ -4146,7 +4200,7 @@ git add -A && git commit -m "feat(cli): static html scoreboard export"
 **Interfaces:**
 - Produces: `renderCardSvg(rec: RunRecord): Promise<string>` (satori, 1200×630, layout and values from the handoff's Share Card file, text and color only, no emoji), `renderCardPng(rec): Promise<Uint8Array>` (resvg), `shareCommand(id)` writing `.bakeoff/runs/<id>.png`.
 
-- [ ] **Step 1: Bundle a font**
+- [x] **Step 1: Bundle a font**
 
 satori needs font data. The handoff specifies Geist (OFL, by Vercel). Download the static weights once into the package:
 
@@ -4168,7 +4222,7 @@ export const fonts = () => [
 ];
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 ```ts
 // test/render/card.test.ts
@@ -4190,7 +4244,7 @@ describe('card', () => {
 });
 ```
 
-- [ ] **Step 3: Run to verify failure, then write card.tsx and share.ts**
+- [x] **Step 3: Run to verify failure, then write card.tsx and share.ts**
 
 Every value below is from `design/handoff/design_handoff_bakeoff/Bakeoff Share Card.dc.html`. satori supports flexbox and gradient backgrounds, not CSS grid, so the handoff's `grid-template-columns: 1.25fr 1fr` becomes two flex children with `flex: 1.25` and `flex: 1`, and the others' `28px 1fr auto` row becomes a flex row. No emoji anywhere; tamper flags are red text.
 
@@ -4284,7 +4338,7 @@ export async function shareCommand(id: string): Promise<void> {
 
 Register `program.command('share <id>').action(shareCommand)` and call `shareCommand(runId)` at the end of `runCommand`. `card.tsx` uses JSX at runtime, so move `react` and `react-dom` from `devDependencies` to `dependencies`.
 
-- [ ] **Step 4: Run tests, generate a real card, commit**
+- [x] **Step 4: Run tests, generate a real card, commit**
 
 ```bash
 bun test && bun run typecheck
@@ -4298,6 +4352,8 @@ git add -A && git commit -m "feat(render): satori share card + share command"
 
 ### Task 28: SSE server and `--watch`
 
+> **Done** in [#22](https://github.com/bakeoff-dev/bakeoff/pull/22). Deviation: `node:http`, never `Bun.serve`, because `src/` targets Node 22; `startWatchServer` replaces `startServer`; every route but `/` needs a fresh per-run token; abort answers 202, not 204; and the port walks forward from 4141 when one is taken.
+
 **Files:**
 - Create: `src/cli/server.ts`, `test/cli/server.test.ts`
 - Modify: `src/cli/commands/run.ts`
@@ -4305,7 +4361,7 @@ git add -A && git commit -m "feat(render): satori share card + share command"
 **Interfaces:**
 - Produces: `startServer(o: { repoRoot; runId; abort: AbortRegistry; port?: number }): { url: string; stop(): void; broadcast(e: RaceEvent): void }`. Routes: `GET /` → `dist/ui.html` with `{mode:'live', eventsUrl:'/events'}` injected; `GET /events` → SSE: replay `events.jsonl` then live; `POST /abort/:driver` → `abort.abort(driver)`, 204.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/cli/server.test.ts
@@ -4341,7 +4397,7 @@ describe('server', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write server.ts**
+- [x] **Step 2: Run to verify failure, then write server.ts**
 
 ```ts
 // src/cli/server.ts
@@ -4383,7 +4439,7 @@ export function startServer(o: { repoRoot: string; runId: string; abort: AbortRe
 
 In `run.ts`, when `opts.watch`: create `abort = createAbortRegistry()`, `srv = startServer({ repoRoot: repo.root, runId, abort })`, set `deps.abort = abort`, chain `deps.onEvent` to also call `srv.broadcast(e)`, open the browser with `Bun.spawn(['open', srv.url])` on darwin / `xdg-open` elsewhere, and call `srv.stop()` after export. Note the events file must exist before the server replays it: `runRace` creates it on the first `emit`; the browser opening 200ms later is fine, and `readEvents` returns `[]` for a missing file.
 
-- [ ] **Step 3: Run tests, commit**
+- [x] **Step 3: Run tests, commit**
 
 ```bash
 bun test && bun run typecheck && git add -A && git commit -m "feat(cli): SSE server, POST abort, run --watch"
@@ -4392,6 +4448,8 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(cli): SSE ser
 ---
 
 ### Task 29: Race view screen
+
+> **Done** in [#4](https://github.com/bakeoff-dev/bakeoff/pull/4). Deviation: [#24](https://github.com/bakeoff-dev/bakeoff/pull/24) made the lanes label the requested model and render the live log tail.
 
 **Files:**
 - Create: `ui/src/screens/Race.tsx`, `ui/src/components/Lane.tsx`, `ui/src/useNow.ts`
@@ -4516,6 +4574,8 @@ git add -A && git commit -m "feat(ui): live race view from the design handoff"
 
 ### Task 30: Ladder core and `bakeoff ladder`
 
+> **Done** in [#2](https://github.com/bakeoff-dev/bakeoff/pull/2) (core) and [#17](https://github.com/bakeoff-dev/bakeoff/pull/17) (`bakeoff ladder`). Deviation: [#9](https://github.com/bakeoff-dev/bakeoff/pull/9) keyed the ladder on driver plus requested model, not driver alone.
+
 **Files:**
 - Create: `src/core/ladder.ts`, `src/cli/commands/ladder.ts`, `test/core/ladder.test.ts`
 - Modify: `src/core/race.ts` (call `updateLadder` after finalize), `src/cli/index.ts`
@@ -4523,7 +4583,7 @@ git add -A && git commit -m "feat(ui): live race view from the design handoff"
 **Interfaces:**
 - Produces: `displayRating(mu, sigma): number` = `Math.round(1000 + 40 * (mu - 3 * sigma))`, `updateLadder(ladder: Ladder, rec: RunRecord): Ladder` (pure), `renderLadder(ladder): string`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/ladder.test.ts
@@ -4557,7 +4617,7 @@ describe('ladder', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write ladder.ts**
+- [x] **Step 2: Run to verify failure, then write ladder.ts**
 
 ```ts
 // src/core/ladder.ts
@@ -4618,7 +4678,7 @@ export async function ladderCommand(): Promise<void> {
 
 In `race.ts` after `record.finishedAt = at()`: `writeLadder(repoRoot, updateLadder(readLadder(repoRoot), record))`. Register `program.command('ladder').action(ladderCommand)`. In `run.ts`, pass `ladder: readLadder(repo.root)` to `renderScoreboard` so the `Ladder` footer line prints.
 
-- [ ] **Step 3: Run tests, commit**
+- [x] **Step 3: Run tests, commit**
 
 ```bash
 bun test && bun run typecheck && git add -A && git commit -m "feat: openskill ladder, ladder command, updated after each race"
@@ -4627,6 +4687,8 @@ bun test && bun run typecheck && git add -A && git commit -m "feat: openskill la
 ---
 
 ### Task 31: Ladder screen
+
+> **Done** in [#5](https://github.com/bakeoff-dev/bakeoff/pull/5). Deviation: the Step 2 plumbing it was waiting on landed in [#22](https://github.com/bakeoff-dev/bakeoff/pull/22) (`scoreboard.ts`, `server.ts`), and [#24](https://github.com/bakeoff-dev/bakeoff/pull/24) made the live `/ladder.json` fetch send the run token.
 
 **Files:**
 - Create: `ui/src/screens/Ladder.tsx`, `ui/src/components/Sparkline.tsx`
@@ -4700,7 +4762,7 @@ export function Ladder({ ladder, state }: { ladder: LadderT | null; state: RaceS
 }
 ```
 
-- [~] **Step 2: Plumb the data** (`data.ts` `useLadder` + `App.tsx` done; `export.ts` and `server.ts` do not exist yet -- finish in Tasks 26 and 28)
+- [x] **Step 2: Plumb the data** (`data.ts` `useLadder` + `App.tsx`; the static and live halves landed with `scoreboard.ts` and `server.ts` in Tasks 26 and 28)
 
 `export.ts`: `Bootstrap` static variant becomes `{ mode: 'static'; events: RaceEvent[]; ladder?: Ladder }` and `exportRun` passes `ladder: readLadder(repoRoot)`. `server.ts`: add `GET /ladder.json` → `Response.json(readLadder(o.repoRoot))`. `data.ts`: mirror the type; add `useLadder(bootstrap, finished): Ladder | null` that returns `bootstrap.ladder ?? null` for static and fetches `/ladder.json` in an effect when `finished` is true for live. `App.tsx`: `<Ladder ladder={useLadder(bootstrap, state.finished)} state={state} />`.
 
@@ -4716,15 +4778,17 @@ git add -A && git commit -m "feat(ui): ladder screen from the design handoff"
 
 ### Task 32: README and packaging check
 
+> **Done** in [#12](https://github.com/bakeoff-dev/bakeoff/pull/12), with the README rewritten for accuracy in [#25](https://github.com/bakeoff-dev/bakeoff/pull/25) and the pack check run against a real `npm pack` plus global install in [#21](https://github.com/bakeoff-dev/bakeoff/pull/21). Deviation: `docs/hero.gif` is not recorded, so the README carries a placeholder comment instead.
+
 **Files:**
 - Create: `README.md`, `docs/hero.gif` (from the day-7 recording), `LICENSE` (MIT)
 - Modify: `package.json` (`repository`, `homepage`, `keywords`)
 
-- [ ] **Step 1: Write README.md**
+- [~] **Step 1: Write README.md**
 
 Sections, in order: one-line pitch and the hero GIF; install (`npm i -g bakeoff-cli` then `bakeoff doctor`); quickstart (5 lines: `cd repo`, `bakeoff init`, edit test command, `bakeoff run 123 --agents claude,codex`, look at the scoreboard); how scoring works (the table from SPEC.md section 4, shortened); tamper detection (the five rules); the ladder (one paragraph: OpenSkill, "Elo-style"); config reference (the YAML from SPEC.md section 2); "How is this different from Emdash / Conductor?" (three sentences); honest limits (agents can read disk; costs are estimates; CI churn); license.
 
-- [ ] **Step 2: Build and pack check**
+- [x] **Step 2: Build and pack check**
 
 ```bash
 bun run build && ls -la dist/ && npm pack --dry-run 2>&1 | tail -20
@@ -4733,7 +4797,7 @@ cd "$(mktemp -d)" && npm i -g "$OLDPWD/$(cd "$OLDPWD" && npm pack 2>/dev/null | 
 
 Expected: `dist/cli.js` and `dist/ui.html` in the tarball, fonts included, `bakeoff --version` prints 0.1.0 from a clean global install.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add -A && git commit -m "docs: README as landing page; packaging verified"
@@ -4745,6 +4809,8 @@ git add -A && git commit -m "docs: README as landing page; packaging verified"
 
 ### Task 33: CI checks component
 
+> **Done** in [#11](https://github.com/bakeoff-dev/bakeoff/pull/11). Deviation: [#16](https://github.com/bakeoff-dev/bakeoff/pull/16) polls from the moment an agent's PR exists, alongside that agent's local checks, and distinguishes "no checks yet" from "no workflows at all" by looking for `.github/workflows/`.
+
 **Files:**
 - Create: `src/core/scorer/ci.ts`, `test/core/scorer/ci.test.ts`
 - Modify: `src/core/race.ts` (after publish and before scoring, when `configured.ci`: await `ciComponent`, splice into the score in `scoreAgent` via `ScoreCtx.ci: ScoreComponent | null`), `src/core/scorer/index.ts` (use `ctx.ci` instead of the placeholder)
@@ -4752,7 +4818,7 @@ git add -A && git commit -m "docs: README as landing page; packaging verified"
 **Interfaces:**
 - Produces: `ciComponent(o: { repo; prNumber; timeoutMs; intervalMs?; run?; sleep? }): Promise<ScoreComponent>` polling `gh pr checks <n> -R owner/name --json name,state,bucket`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/scorer/ci.test.ts
@@ -4782,7 +4848,7 @@ describe('ciComponent', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write ci.ts**
+- [x] **Step 2: Run to verify failure, then write ci.ts**
 
 ```ts
 // src/core/scorer/ci.ts
@@ -4813,7 +4879,7 @@ export async function ciComponent(o: { repo: { owner: string; name: string }; pr
 
 Wire: `ScoreCtx` gains `ci: ScoreComponent | null`; `runOne` computes `ci = configured.ci && out.prNumber ? await ciComponent({ repo, prNumber: out.prNumber, timeoutMs: parseDuration(config.ci_timeout) }) : null` and passes it; `scoreAgent` uses `ctx.ci ?? { id: 'ci', max: 10, awarded: null, detail: 'n/a' }`.
 
-- [ ] **Step 3: Run tests, add a workflow to scratch, race, commit**
+- [x] **Step 3: Run tests, add a workflow to scratch, race, commit**
 
 ```bash
 bun test && bun run typecheck
@@ -4825,6 +4891,8 @@ git add -A && git commit -m "feat(scorer): CI checks component via gh pr checks"
 ---
 
 ### Task 34: `bakeoff merge <id>`
+
+> **Cut from v1.** Bakeoff scores and ranks; deciding what to merge stays the maintainer's call, and `gh pr merge` already does it. Text kept as the record of what was planned.
 
 **Files:**
 - Create: `src/cli/commands/merge.ts`, `test/cli/merge.test.ts`
@@ -4905,9 +4973,11 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(cli): merge w
 
 ### Task 35: Hidden tests end-to-end on scratch
 
+> **Done**, by the data set's hidden-test verification rather than on scratch: all ten trimmed hidden-test sets were validated end to end against the real forked issues, which exercises the same policy this task was written to prove.
+
 No new code unless it breaks. This proves SPEC.md section 1's hidden-test policy.
 
-- [ ] **Step 1: Configure hidden tests on scratch**
+- [x] **Step 1: Configure hidden tests on scratch**
 
 ```bash
 # in scratch/
@@ -4926,7 +4996,7 @@ grep -q '.bakeoff/hidden/' .gitignore && git add -A && git commit -m "hidden tes
 bun run /path/to/bakeoff/src/cli/index.ts run 1 --agents claude,codex --keep-worktrees
 ```
 
-- [ ] **Step 2: Verify the policy**
+- [x] **Step 2: Verify the policy**
 
 ```bash
 ls "$TMPDIR/bakeoff/<runId>/claude/.bakeoff" 2>&1   # expected: No such file or directory
@@ -4945,6 +5015,8 @@ git add -A && git commit -m "test: hidden tests verified end-to-end"
 # Cut-able tail (only if day 9 finishes early)
 
 ### Task 36: Blind LLM judge (off by default)
+
+> **Cut from v1.** An LLM judge would make the score non-deterministic, which is the one property the scoreboard sells. Text kept as the record of what was planned.
 
 **Files:**
 - Create: `src/core/scorer/judge.ts`, `test/core/scorer/judge.test.ts`
@@ -5034,16 +5106,16 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): blin
 - **Section 1 naming**: Task 1 (`names.ts`), Task 15 (`init` gitignores hidden and logs). Package name `bakeoff-cli`, bin `bakeoff`: Task 1.
 - **Section 2 config**: Task 4. `ci_timeout: 0` disables CI: Task 4 `configuredFlags` and Task 33.
 - **Section 3 run flow**: preflight doctor Task 15, issue resolve Task 6, baseline Task 17 + 22, packet Task 7, worktree with `.bakeoff` stripped Task 10, publish Task 13, orchestration Task 14, issue picker Task 15, `--keep-worktrees` Task 14/15.
-- **Section 4 scoring**: tests Task 18, hidden Task 18, typecheck/lint Task 19, CI Task 33, diff with zero guard Task 20, tamper rules 1-5 Task 21, judge Task 36, crash/timeout exclusion Task 22 (`rankAgents`) and Task 30, tiebreak Task 22, n/a rendering Task 23 (`-`/`n/a`) and Task 25 (grey segment), baseline banner Task 23 + 25.
+- **Section 4 scoring**: tests Task 18, hidden Task 18, typecheck/lint Task 19, CI Task 33, diff with zero guard Task 20, tamper rules 1-5 Task 21, judge Task 36 (cut from v1), crash/timeout exclusion Task 22 (`rankAgents`) and Task 30, tiebreak Task 22, n/a rendering Task 23 (`-`/`n/a`) and Task 25 (grey segment), baseline banner Task 23 + 25.
 - **Section 5 packet**: Task 7; no per-agent strings, verified by test.
 - **Section 6 contract**: Task 2 + 3.
 - **Section 7 ladder**: Task 30 (`displayRating`, exclusion, history on non-rated runs, idempotency).
-- **Section 8 drivers + budget**: meter Task 8, pricing Task 9, Claude Task 12 (also `--max-budget-usd`), Codex Task 16, OpenCode Task 24, unknown model → null cost Task 8/9, `maxTurns` ignored for Claude Task 12.
+- **Section 8 drivers + budget**: meter Task 8, pricing Task 9, Claude Task 12 (also `--max-budget-usd`), Codex Task 16 (delivered by the driver pass, with Gemini and Cursor; OpenCode, Task 24, deferred), unknown model → null cost Task 8/9, `maxTurns` ignored for Claude Task 12.
 - **Section 9 process**: Task 8 (detached, SIGTERM then SIGKILL after 10s, `budget_exceeded`, `aborted`).
-- **Section 10 CLI/UI/outputs**: `run/doctor/init` Task 11/15, `share` Task 27, `ladder` Task 30, `merge` Task 34, `export` Task 26, server Task 28, Race screen Task 29, Scoreboard Task 25, Ladder screen Task 31, card Task 27, terminal live view Task 15 and final table Task 23 (both per `design/TERMINAL.md`), copy-markdown Task 25.
+- **Section 10 CLI/UI/outputs**: `run/doctor/init` Task 11/15, `share` Task 27, `ladder` Task 30, `merge` Task 34 (cut from v1), `export` Task 26, server Task 28, Race screen Task 29, Scoreboard Task 25, Ladder screen Task 31, card Task 27, terminal live view Task 15 and final table Task 23 (both per `design/TERMINAL.md`), copy-markdown Task 25.
 - **Section 11 testing**: fixture repos helper Task 10; every task carries its tests.
-- **Section 12 cut order**: judge (36), merge (34), replay (not planned; cut pre-emptively), ladder screen (31), race view (28-29), OpenCode (24), hidden tests (18/35), CI (33) are all separable tasks at the tail of their day.
+- **Section 12 cut order**: judge (36), merge (34), replay (not planned; cut pre-emptively), ladder screen (31), race view (28-29), OpenCode (24), hidden tests (18/35), CI (33) are all separable tasks at the tail of their day. Actually cut from v1: the judge, `merge`, `replay` and the OpenCode driver. Everything below them shipped.
 
 UI styling: Tasks 25, 27, 29 and 31 carry inline style objects transcribed from the handoff markup; no Tailwind, no separate stylesheet, no emoji.
 
-Type consistency checked: `ScoreCtx` fields (`worktree, repoRoot, baseSha, config, agent, hiddenDir, repo, baselineGreen, ci`) are introduced in Tasks 14, 22, 33 in that order; `Bootstrap` is defined in `src/cli/export.ts` and mirrored in `ui/src/data.ts` (Task 25/26/31); `AbortRegistry` from Task 14 is what Task 28 consumes; `fmtCost`/`fmtDuration` exist separately in `src/cli/render/table.ts` and `ui/src/theme.ts` because the UI must not import from `src/cli`.
+Type consistency checked: `ScoreCtx` fields (`worktree, repoRoot, baseSha, config, agent, hiddenDir, repo, baselineGreen, ci`) are introduced in Tasks 14, 22, 33 in that order; `Bootstrap` is defined in `src/cli/scoreboard.ts` and mirrored in `ui/src/data.ts` (Task 25/26/31); `AbortRegistry` from Task 14 is what Task 28 consumes; `fmtCost`/`fmtDuration` exist separately in `src/cli/render/table.ts` and `ui/src/theme.ts` because the UI must not import from `src/cli`.

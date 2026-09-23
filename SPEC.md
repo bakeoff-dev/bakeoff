@@ -345,6 +345,8 @@ vitest. `test/` mirrors `src/`.
 
 Cannot cut: two drivers, scorer, run record, HTML scoreboard, share PNG. Cut in this order if v1 has to shrink: LLM judge, `merge`, `replay`, ladder screen (keep `ladder.json` + terminal table), race view (ship scoreboard-only UI), OpenCode driver, hidden tests, CI polling.
 
+Cut from v1, in that order: the **LLM judge** (a judged score is not a deterministic one, which is the property the scoreboard sells), **`merge`** (`gh pr merge` already does it, and choosing what to merge stays the maintainer's call), **`replay`** (never planned), and the **OpenCode driver** (a slot in `DriverIdSchema` and a UI colour, no driver). Everything below them shipped: the ladder screen, the race view, hidden tests and CI polling are all in.
+
 ## 13. Known risks
 
 - Driver flag churn: `doctor` parses `--help` and refuses to run with a driver whose required flags are missing. Pin tested versions in `names.ts` `TESTED_VERSIONS`.
