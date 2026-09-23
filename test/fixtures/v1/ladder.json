@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "entries": {
+    "claude": {
+      "driver": "claude",
+      "mu": 27.6,
+      "sigma": 8.1,
+      "rating": 1092,
+      "races": 3,
+      "wins": 2,
+      "avgCostUsd": 1.21,
+      "avgDurationMs": 401000,
+      "history": [
+        {
+          "runId": "20260902-k7q2",
+          "at": "2026-09-02T18:21:40.000Z",
+          "rating": 1092
+        }
+      ]
+    },
+    "codex": {
+      "driver": "codex",
+      "mu": 24.1,
+      "sigma": 8.0,
+      "rating": 968,
+      "races": 3,
+      "wins": 1,
+      "avgCostUsd": 0.88,
+      "avgDurationMs": 372000,
+      "history": [
+        {
+          "runId": "20260902-k7q2",
+          "at": "2026-09-02T18:21:40.000Z",
+          "rating": 968
+        }
+      ]
+    }
+  }
+}

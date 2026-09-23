@@ -2714,7 +2714,7 @@ git add -A && git commit -m "feat(drivers): Codex driver with JSONL parser + fix
 **Interfaces:**
 - Produces: `runCheck(cmd: string, cwd: string, timeoutMs?: number): Promise<{ green: boolean; output: string; exitCode: number | null }>` (runs via `sh -c`), `defaultTestPaths(worktree): string[]` (existing among `test`, `tests`, `__tests__`, `spec`, plus glob `**/*.{test,spec}.{ts,tsx,js,jsx,py,go}` matched with `Bun.Glob`), `restoreTestPaths(worktree, baseSha, paths, run?): Promise<string[]>` (returns restored paths; `git checkout <sha> -- <path>` per path, ignoring paths absent at base), `computeBaseline(o: { repoRoot; baseSha; config; runId }, run?): Promise<Baseline>` (temp worktree, run each configured command, remove).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/scorer/checks.test.ts
@@ -2752,7 +2752,7 @@ describe('computeBaseline', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write checks.ts**
+- [x] **Step 2: Run to verify failure, then write checks.ts**
 
 ```ts
 // src/core/scorer/checks.ts
@@ -2803,7 +2803,7 @@ export async function computeBaseline(o: { repoRoot: string; baseSha: string; ru
 }
 ```
 
-- [ ] **Step 3: Run tests, commit**
+- [x] **Step 3: Run tests, commit**
 
 Run: `bun test && bun run typecheck` → pass.
 
@@ -2821,7 +2821,7 @@ git add -A && git commit -m "feat(scorer): check runner, test restore, baseline"
 **Interfaces:**
 - Produces: `parseTestCounts(output: string): { passed: number; total: number } | null` (vitest/jest "Tests  9 passed (9)", bun "9 pass / 0 fail", pytest "9 passed", go "ok" lines counted), `visibleTestsComponent(o: { worktree; baseSha; config; testPaths: string[]; hiddenConfigured: boolean; baselineGreen: boolean | null }): Promise<ScoreComponent>`, `hiddenTestsComponent(o: { worktree; hiddenDir; hidden: NonNullable<Config['hidden_tests']> }): Promise<ScoreComponent>` (copies `hiddenDir/**` into `worktree/dest`, runs command; n/a + detail "no hidden tests found" if `hiddenDir` empty).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/scorer/tests.test.ts
@@ -2871,7 +2871,7 @@ describe('hiddenTestsComponent', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write tests.ts**
+- [x] **Step 2: Run to verify failure, then write tests.ts**
 
 ```ts
 // src/core/scorer/tests.ts
@@ -2913,7 +2913,7 @@ export async function hiddenTestsComponent(o: { worktree: string; hiddenDir: str
 }
 ```
 
-- [ ] **Step 3: Run tests, commit**
+- [x] **Step 3: Run tests, commit**
 
 ```bash
 bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): visible and hidden test components"
@@ -2929,7 +2929,7 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): visi
 **Interfaces:**
 - Produces: `checkComponents(o: { worktree; config: { lint?: string; typecheck?: string } }): Promise<[ScoreComponent, ScoreComponent]>` returning `typecheck` then `lint`. Max split: both configured 7.5/7.5; one configured 15/0; none 7.5/7.5 both n/a.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/scorer/lint.test.ts
@@ -2955,7 +2955,7 @@ describe('checkComponents', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write lint.ts**
+- [x] **Step 2: Run to verify failure, then write lint.ts**
 
 ```ts
 // src/core/scorer/lint.ts
@@ -2976,7 +2976,7 @@ export async function checkComponents(o: { worktree: string; config: { lint?: st
 }
 ```
 
-- [ ] **Step 3: Run tests, commit**
+- [x] **Step 3: Run tests, commit**
 
 ```bash
 bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): typecheck and lint components"
@@ -2992,7 +2992,7 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): type
 **Interfaces:**
 - Produces: `diffStats(worktree, baseSha, run?): Promise<{ files: string[]; added: number; removed: number }>` (from `git diff --numstat <baseSha>` plus `git ls-files --others --exclude-standard` counted as added lines), `diffDiscipline(finishers: { driver: DriverId; files: string[]; lines: number }[]): Map<DriverId, ScoreComponent>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/scorer/diff.test.ts
@@ -3040,7 +3040,7 @@ describe('diffDiscipline', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write diff.ts**
+- [x] **Step 2: Run to verify failure, then write diff.ts**
 
 ```ts
 // src/core/scorer/diff.ts
@@ -3090,7 +3090,7 @@ export function diffDiscipline(finishers: { driver: DriverId; files: string[]; l
 }
 ```
 
-- [ ] **Step 3: Run tests, commit**
+- [x] **Step 3: Run tests, commit**
 
 ```bash
 bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): diff stats and diff discipline with zero guard"
@@ -3106,7 +3106,7 @@ bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): diff
 **Interfaces:**
 - Produces: `tamperFlags(o: { worktree; baseSha; testPaths: string[]; hiddenDest: string | null }, run?): Promise<TamperFlag[]>`, `isTestFile(path, testPaths): boolean`, `isProtectedConfig(path): boolean`, `countAsserts(text): number`, `SKIP_PATTERNS: RegExp[]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // test/core/scorer/tamper.test.ts
@@ -3158,7 +3158,7 @@ describe('helpers', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure, then write tamper.ts**
+- [x] **Step 2: Run to verify failure, then write tamper.ts**
 
 ```ts
 // src/core/scorer/tamper.ts
@@ -3217,7 +3217,7 @@ export async function tamperFlags(o: { worktree: string; baseSha: string; testPa
 }
 ```
 
-- [ ] **Step 3: Run tests, commit**
+- [x] **Step 3: Run tests, commit**
 
 ```bash
 bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): tamper detector"

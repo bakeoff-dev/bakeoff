@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { RunRecordSchema } from '../../src/contract/schema';
+import { RunRecordSchema, SCHEMA_VERSION } from '../../src/contract/schema';
 
 describe('contract fixture', () => {
   it('run.json validates against RunRecordSchema', () => {
     const raw = JSON.parse(readFileSync('src/contract/fixtures/run.json', 'utf8'));
     const rec = RunRecordSchema.parse(raw);
-    expect(rec.schemaVersion).toBe(1);
+    expect(rec.schemaVersion).toBe(SCHEMA_VERSION);
     expect(rec.agents).toHaveLength(3);
     expect(rec.winner).toBe('claude');
     const codex = rec.agents.find((a) => a.driver === 'codex')!;

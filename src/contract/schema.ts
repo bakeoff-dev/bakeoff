@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-export const SCHEMA_VERSION = 1 as const;
+/**
+ * 2: agents and ladder entries carry the model that ran, and the ladder is keyed by
+ * competitor (`driver` or `driver:model`) rather than by driver alone. Readers migrate
+ * version 1 on load -- see `src/contract/migrate.ts`.
+ */
+export const SCHEMA_VERSION = 2 as const;
 
 export const DriverIdSchema = z.enum(['claude', 'codex', 'opencode', 'gemini']); // gemini: schema slot only in v1
 export const AgentStatusSchema = z.enum(['running', 'ok', 'timeout', 'crashed', 'budget_exceeded']);
@@ -26,6 +31,8 @@ export const ScoreBreakdownSchema = z.object({
 });
 export const AgentResultSchema = z.object({
   driver: DriverIdSchema,
+  /** The model that actually ran, as the CLI reported it. null means the CLI's own default. */
+  model: z.string().nullable(),
   status: AgentStatusSchema,
   branch: z.string(),
   exitCode: z.number().nullable(),
@@ -52,7 +59,7 @@ export const ConfiguredSchema = z.object({
   test: z.boolean(), lint: z.boolean(), typecheck: z.boolean(), hiddenTests: z.boolean(), ci: z.boolean(), judge: z.boolean(),
 });
 export const RunRecordSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(SCHEMA_VERSION),
   id: z.string(),
   createdAt: z.string(),
   finishedAt: z.string().nullable(),
@@ -69,7 +76,7 @@ export const RunRecordSchema = z.object({
 const at = z.string();
 export const RaceEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('race.started'), at, runId: z.string(), issue: IssueInfoSchema, repo: RepoInfoSchema, agents: z.array(DriverIdSchema), caps: CapsSchema, baseline: BaselineSchema }),
-  z.object({ type: z.literal('agent.started'), at, driver: DriverIdSchema, branch: z.string() }),
+  z.object({ type: z.literal('agent.started'), at, driver: DriverIdSchema, branch: z.string(), model: z.string().nullable() }),
   z.object({ type: z.literal('agent.progress'), at, driver: DriverIdSchema, costUsd: z.number().nullable(), tokens: TokenUsageSchema.nullable(), lastAction: z.string(), filesTouched: z.number() }),
   z.object({ type: z.literal('agent.exited'), at, driver: DriverIdSchema, status: AgentStatusSchema, exitCode: z.number().nullable(), durationMs: z.number(), costUsd: z.number().nullable(), tokens: TokenUsageSchema.nullable() }),
   z.object({ type: z.literal('agent.pr_opened'), at, driver: DriverIdSchema, prUrl: z.string(), prNumber: z.number() }),
@@ -78,14 +85,24 @@ export const RaceEventSchema = z.discriminatedUnion('type', [
 ]);
 
 export const LadderEntrySchema = z.object({
-  driver: DriverIdSchema, mu: z.number(), sigma: z.number(), rating: z.number(),
+  driver: DriverIdSchema, model: z.string().nullable(),
+  mu: z.number(), sigma: z.number(), rating: z.number(),
   races: z.number(), wins: z.number(), avgCostUsd: z.number().nullable(), avgDurationMs: z.number(),
   history: z.array(z.object({ runId: z.string(), at: z.string(), rating: z.number() })),
 });
 export const LadderSchema = z.object({
-  schemaVersion: z.literal(1),
-  entries: z.record(DriverIdSchema, LadderEntrySchema.optional()),
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  /** Keyed by competitor: see `competitorKey`. A driver on two models rates separately. */
+  entries: z.record(z.string(), LadderEntrySchema.optional()),
 });
+
+/**
+ * Ladder identity. A driver is only comparable with itself on the same model, so the
+ * model is part of the key; a null model (the CLI's own default) keys on the driver alone.
+ */
+export function competitorKey(driver: DriverId, model: string | null): string {
+  return model === null ? driver : `${driver}:${model}`;
+}
 
 export type DriverId = z.infer<typeof DriverIdSchema>;
 export type AgentStatus = z.infer<typeof AgentStatusSchema>;

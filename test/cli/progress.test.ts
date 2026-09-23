@@ -57,7 +57,7 @@ describe('progressRenderer', () => {
     const r = progressRenderer(out);
     r.onEvent(started);
     const firstLines = (chunks.at(-1) ?? '').split('\n').length - 1;
-    r.onEvent({ type: 'agent.started', at: 'x', driver: 'claude', branch: 'b' });
+    r.onEvent({ type: 'agent.started', at: 'x', driver: 'claude', branch: 'b', model: null });
     // second draw moves the cursor up by exactly the number of lines it drew
     expect(chunks.at(-2)).toBe(`\x1b[${firstLines}A\x1b[J`);
     r.stop();
@@ -171,7 +171,7 @@ describe('progressRenderer on resize', () => {
     r.onEvent(started);
     writes.length = 0;
     handlers.resize?.();
-    r.onEvent({ type: 'agent.started', at: 'x', driver: 'claude', branch: 'b' });
+    r.onEvent({ type: 'agent.started', at: 'x', driver: 'claude', branch: 'b', model: null });
     // no cursor-up: the rows on screen re-wrapped and their count is unknown
     expect(writes.some((w) => /\x1b\[\d+A/.test(w))).toBe(false);
     r.stop();

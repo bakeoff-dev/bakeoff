@@ -1,10 +1,11 @@
+import { readRaceEvent } from './migrate';
 import {
-  RaceEventSchema, type AgentStatus, type Baseline, type Caps, type DriverId, type IssueInfo,
+  type AgentStatus, type Baseline, type Caps, type DriverId, type IssueInfo,
   type RaceEvent, type RepoInfo, type RunRecord, type ScoreBreakdown, type TokenUsage,
 } from './schema';
 
 export interface AgentLane {
-  driver: DriverId; status: AgentStatus; branch: string; startedAt: string | null;
+  driver: DriverId; model: string | null; status: AgentStatus; branch: string; startedAt: string | null;
   costUsd: number | null; tokens: TokenUsage | null; lastAction: string; filesTouched: number;
   durationMs: number | null; exitCode: number | null; prUrl: string | null; prNumber: number | null;
   score: ScoreBreakdown | null;
@@ -18,7 +19,7 @@ export const initialState: RaceState = {
 };
 
 function lane(driver: DriverId): AgentLane {
-  return { driver, status: 'running', branch: '', startedAt: null, costUsd: null, tokens: null, lastAction: '',
+  return { driver, model: null, status: 'running', branch: '', startedAt: null, costUsd: null, tokens: null, lastAction: '',
     filesTouched: 0, durationMs: null, exitCode: null, prUrl: null, prNumber: null, score: null };
 }
 function patch(s: RaceState, driver: DriverId, f: (l: AgentLane) => AgentLane): RaceState {
@@ -31,7 +32,7 @@ export function applyEvent(s: RaceState, e: RaceEvent): RaceState {
     case 'race.started':
       return { ...initialState, runId: e.runId, issue: e.issue, repo: e.repo, caps: e.caps, baseline: e.baseline, agents: e.agents.map(lane) };
     case 'agent.started':
-      return patch(s, e.driver, (l) => ({ ...l, branch: e.branch, startedAt: e.at, status: 'running' }));
+      return patch(s, e.driver, (l) => ({ ...l, branch: e.branch, startedAt: e.at, status: 'running', model: e.model }));
     case 'agent.progress':
       return patch(s, e.driver, (l) => ({ ...l, costUsd: e.costUsd, tokens: e.tokens, lastAction: e.lastAction, filesTouched: e.filesTouched }));
     case 'agent.exited':
@@ -48,5 +49,5 @@ export function reduceEvents(events: RaceEvent[], start: RaceState = initialStat
   return events.reduce(applyEvent, start);
 }
 export function parseEventLines(text: string): RaceEvent[] {
-  return text.split('\n').filter((l) => l.trim().length > 0).map((l) => RaceEventSchema.parse(JSON.parse(l)));
+  return text.split('\n').filter((l) => l.trim().length > 0).map((l) => readRaceEvent(JSON.parse(l)));
 }

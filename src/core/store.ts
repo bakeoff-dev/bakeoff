@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { LadderSchema, RunRecordSchema, parseEventLines, type Ladder, type RaceEvent, type RunRecord } from '@contract';
+import { SCHEMA_VERSION, parseEventLines, readLadderJson, readRunJson, type Ladder, type RaceEvent, type RunRecord } from '@contract';
 import { NAMES } from './names';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -36,7 +36,7 @@ export function writeRun(repoRoot: string, rec: RunRecord): void {
 }
 
 export function readRun(repoRoot: string, id: string): RunRecord {
-  return RunRecordSchema.parse(JSON.parse(readFileSync(paths(repoRoot).runJson(id), 'utf8')));
+  return readRunJson(JSON.parse(readFileSync(paths(repoRoot).runJson(id), 'utf8')));
 }
 
 export function listRunIds(repoRoot: string): string[] {
@@ -61,8 +61,8 @@ export function readEvents(repoRoot: string, id: string): RaceEvent[] {
 
 export function readLadder(repoRoot: string): Ladder {
   const f = paths(repoRoot).ladder;
-  if (!existsSync(f)) return { schemaVersion: 1, entries: {} };
-  return LadderSchema.parse(JSON.parse(readFileSync(f, 'utf8')));
+  if (!existsSync(f)) return { schemaVersion: SCHEMA_VERSION, entries: {} };
+  return readLadderJson(JSON.parse(readFileSync(f, 'utf8')));
 }
 
 export function writeLadder(repoRoot: string, ladder: Ladder): void {
