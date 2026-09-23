@@ -2,7 +2,8 @@ import { useState, type MouseEvent } from 'react';
 import type { AgentLane, RunRecord } from '@contract';
 import { Dot } from './Dot';
 import { Pill } from './Pill';
-import { DRIVER_META, T, fmtClock, fmtCost, fmtTok, ghostButton } from '../theme';
+import { ModelLine } from './ModelLine';
+import { DRIVER_META, T, fmtClock, fmtCost, fmtTok, ghostButton, modelLabel } from '../theme';
 import { useNow } from '../useNow';
 
 export const logColor = (line: string): string =>
@@ -46,10 +47,14 @@ export function Lane({
         style={{ cursor: 'pointer', padding: '18px 24px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}
       >
         <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr auto', alignItems: 'center', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Dot color={meta.color} px={8} />
-            <span style={{ fontSize: 15, fontWeight: 500 }}>{meta.name}</span>
-            <Pill status={lane.status} size={11} label={lane.status === 'ok' && lane.prUrl ? 'PR open' : undefined} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Dot color={meta.color} px={8} />
+              <span style={{ fontSize: 15, fontWeight: 500 }}>{meta.name}</span>
+              <Pill status={lane.status} size={11} label={lane.status === 'ok' && lane.prUrl ? 'PR open' : undefined} />
+            </div>
+            {/* A lane only ever learns what started, never what was asked for. */}
+            <ModelLine text={modelLabel(lane.model, undefined)} indent={18} />
           </div>
           <span style={{ fontSize: 13, color: T.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
             {lane.lastAction || (running ? 'starting' : '')}

@@ -80,7 +80,27 @@ export function fmtClock(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 const k = (n: number): string => (n >= 10000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
-export const fmtTok = (t: TokenUsage | null): string => (t ? `${k(t.input)} / ${k(t.output)}` : '—');
+/**
+ * `in / out`, where in is every token the turn paid for. Claude sends nearly all of its
+ * context through the cache -- a recorded race showed 28 input tokens against 468k cache
+ * reads -- so counting `input` alone leaves the lane reading 0k for the whole race.
+ * `fmtTok` in src/cli/render/style.ts sums the same four fields for the terminal.
+ */
+export const fmtTok = (t: TokenUsage | null): string =>
+  t ? `${k(t.input + t.cacheRead + t.cacheWrite)} / ${k(t.output)}` : '—';
+
+/**
+ * The muted line under an agent's name: which model ran, and whether anyone chose it.
+ *
+ * `requested` is `undefined` where the UI cannot know -- a live lane learns the model
+ * from `agent.started` and never sees the request -- so that case states the model
+ * without claiming it was or wasn't auto-routed.
+ */
+export function modelLabel(model: string | null, requested: string | null | undefined): string {
+  if (requested === undefined) return model ?? 'auto';
+  if (model === null) return requested ?? 'auto';
+  return requested === null ? `auto: ${model}` : model;
+}
 
 export const page: CSSProperties = {
   position: 'relative', minHeight: '100vh', minWidth: 1200, overflow: 'clip',

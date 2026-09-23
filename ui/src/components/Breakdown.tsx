@@ -1,7 +1,8 @@
 import type { AgentResult, AgentStatus, TamperFlag } from '@contract';
 import { Dot } from './Dot';
 import { testsDetail } from './WinnerSurface';
-import { DRIVER_META, SEGMENTS, T, segmentsOf, surface } from '../theme';
+import { ModelLine } from './ModelLine';
+import { DRIVER_META, SEGMENTS, T, modelLabel, segmentsOf, surface } from '../theme';
 
 const FLAG_WORD: Record<TamperFlag['rule'], string> = {
   test_skipped: 'skipped test',
@@ -49,9 +50,12 @@ export function Breakdown({ agents }: { agents: AgentResult[] }) {
               padding: '18px 0', borderBottom: i === agents.length - 1 ? 'none' : `1px solid ${T.divider}`,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Dot color={meta.color} px={7} />
-              <span style={{ fontSize: 13, fontWeight: 500 }}>{meta.name}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Dot color={meta.color} px={7} />
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{meta.name}</span>
+              </div>
+              <ModelLine text={modelLabel(a.model, a.requestedModel)} indent={15} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 4fr', alignItems: 'center' }}>

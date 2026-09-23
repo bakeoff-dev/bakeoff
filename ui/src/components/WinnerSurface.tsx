@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import type { AgentResult } from '@contract';
 import { Dot } from './Dot';
 import { Pill } from './Pill';
-import { DRIVER_META, T, fmtClock, fmtCost } from '../theme';
+import { ModelLine } from './ModelLine';
+import { DRIVER_META, T, fmtClock, fmtCost, modelLabel } from '../theme';
 
 /** 0 -> target over 1.4s, cubic ease-out. The only animation on this screen besides the glow. */
 function useCountUp(target: number, ms = 1400): number {
@@ -50,10 +51,13 @@ export function WinnerSurface({ a }: { a: AgentResult }) {
         display: 'flex', flexDirection: 'column', gap: 24,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Dot color={meta.color} px={8} />
-        <span style={{ fontSize: 16, fontWeight: 500 }}>{meta.name}</span>
-        <Pill status={a.status} label={a.prUrl ? 'PR open' : undefined} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Dot color={meta.color} px={8} />
+          <span style={{ fontSize: 16, fontWeight: 500 }}>{meta.name}</span>
+          <Pill status={a.status} label={a.prUrl ? 'PR open' : undefined} />
+        </div>
+        <ModelLine text={modelLabel(a.model, a.requestedModel)} size={13} indent={18} />
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
         <span style={{ fontSize: 136, lineHeight: 0.9, fontWeight: 700, letterSpacing: '-.04em' }}>{n}</span>
