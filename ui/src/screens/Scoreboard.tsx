@@ -1,4 +1,4 @@
-import type { RaceState, RunRecord } from '@contract';
+import { NO_ACCEPTANCE_TEST, type RaceState, type RunRecord } from '@contract';
 import { Breakdown } from '../components/Breakdown';
 import { OthersColumn } from '../components/OthersColumn';
 import { Pill } from '../components/Pill';
@@ -30,11 +30,9 @@ export function Scoreboard({ state }: { state: RaceState }) {
           <span style={{ fontSize: 13, color: T.muted }}>{rec.id}</span>
           <span style={{ marginLeft: 'auto' }}><Pill status="ok" label="Finished" /></span>
         </div>
-        {rec.baseline.testsGreen === false && (
-          <div style={{ fontSize: 13, color: T.warn }}>
-            Tests were already failing on {rec.repo.baseSha.slice(0, 7)}. Visible-test points are unreliable for this run.
-          </div>
-        )}
+        {warnings(rec).map((w) => (
+          <div key={w} style={{ fontSize: 13, color: T.warn }}>{w}</div>
+        ))}
         <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, alignItems: 'stretch' }}>
           <WinnerSurface a={winner} />
           <OthersColumn agents={ranked.slice(1)} />
@@ -47,6 +45,23 @@ export function Scoreboard({ state }: { state: RaceState }) {
       </div>
     </div>
   );
+}
+
+/**
+ * What qualifies these scores, in reading order. Both are about what the race could
+ * measure, not about the agents: today `race.ts` makes them mutually exclusive
+ * (`noAcceptanceTest` requires a green baseline), but nothing in the record enforces
+ * that, so both can render.
+ */
+export function warnings(rec: RunRecord): string[] {
+  const out: string[] = [];
+  if (rec.baseline.testsGreen === false) {
+    out.push(
+      `Tests were already failing on ${rec.repo.baseSha.slice(0, 7)}. Visible-test points are unreliable for this run.`,
+    );
+  }
+  if (rec.noAcceptanceTest) out.push(NO_ACCEPTANCE_TEST);
+  return out;
 }
 
 export function toMarkdown(rec: RunRecord): string {

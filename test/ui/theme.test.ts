@@ -16,6 +16,10 @@ describe('theme', () => {
     expect(fmtTok({ input: 28, output: 6100, cacheRead: 468000, cacheWrite: 12000 })).toBe('480k / 6.1k');
     expect(fmtCost(1.42)).toBe('$1.42');
     expect(fmtCost(null)).toBe('n/a');
+    // A cheap model rounding to $0.00 reads as free rather than nearly free.
+    expect(fmtCost(0.004)).toBe('<$0.01');
+    expect(fmtCost(0.005)).toBe('$0.01');
+    expect(fmtCost(0)).toBe('$0.00');
   });
 
   it('merges typecheck+lint, keeps n/a as dashed, sizes by the track max', () => {

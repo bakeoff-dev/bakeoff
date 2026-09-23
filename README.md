@@ -1,5 +1,7 @@
 # Bakeoff
 
+[![CI](https://github.com/bakeoff-dev/bakeoff/actions/workflows/ci.yml/badge.svg)](https://github.com/bakeoff-dev/bakeoff/actions/workflows/ci.yml)
+
 **Race coding agents on your real issues. Merge the winner.**
 
 <!-- hero GIF coming: docs/hero.gif, recorded from the live race view once the race screen is final -->

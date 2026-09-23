@@ -20,8 +20,12 @@ const FLAG_WORD: Record<TamperFlag['rule'], string> = {
   hidden_path_write: 'wrote hidden path',
 };
 
-const cost = (value: number | null) =>
-  value === null ? 'n/a' : `$${value.toFixed(2)}`;
+/** Mirrors fmtCost in ui/src/theme.ts and src/cli/render/style.ts. */
+export const cost = (value: number | null): string => {
+  if (value === null) return 'n/a';
+  if (value > 0 && value < 0.005) return '<$0.01';
+  return `$${value.toFixed(2)}`;
+};
 
 /**
  * Mirrors `modelLabel` in ui/src/theme.ts, which the card cannot import: the model that
