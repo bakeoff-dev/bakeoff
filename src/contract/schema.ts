@@ -97,9 +97,25 @@ export const RunRecordSchema = z.object({
 const at = z.string();
 export const RaceEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('race.started'), at, runId: z.string(), issue: IssueInfoSchema, repo: RepoInfoSchema, agents: z.array(DriverIdSchema), caps: CapsSchema, baseline: BaselineSchema }),
-  z.object({ type: z.literal('agent.started'), at, driver: DriverIdSchema, branch: z.string(), model: z.string().nullable() }),
-  z.object({ type: z.literal('agent.progress'), at, driver: DriverIdSchema, costUsd: z.number().nullable(), tokens: TokenUsageSchema.nullable(), lastAction: z.string(), filesTouched: z.number() }),
-  z.object({ type: z.literal('agent.exited'), at, driver: DriverIdSchema, status: AgentStatusSchema, exitCode: z.number().nullable(), durationMs: z.number(), costUsd: z.number().nullable(), tokens: TokenUsageSchema.nullable() }),
+  z.object({
+    type: z.literal('agent.started'), at, driver: DriverIdSchema, branch: z.string(),
+    model: z.string().nullable(),
+    /** What the user asked for, so a live lane can say "auto:" before the CLI reports. */
+    requestedModel: z.string().nullable(),
+  }),
+  z.object({
+    type: z.literal('agent.progress'), at, driver: DriverIdSchema, costUsd: z.number().nullable(),
+    tokens: TokenUsageSchema.nullable(), lastAction: z.string(), filesTouched: z.number(),
+    /** Recent log lines, so the live drawer has something to show before the agent exits. */
+    logTail: z.string(),
+  }),
+  z.object({
+    type: z.literal('agent.exited'), at, driver: DriverIdSchema, status: AgentStatusSchema,
+    exitCode: z.number().nullable(), durationMs: z.number(), costUsd: z.number().nullable(),
+    tokens: TokenUsageSchema.nullable(),
+    /** The model that actually ran, known only once the CLI has reported it. */
+    model: z.string().nullable(),
+  }),
   z.object({ type: z.literal('agent.pr_opened'), at, driver: DriverIdSchema, prUrl: z.string(), prNumber: z.number() }),
   z.object({ type: z.literal('agent.scored'), at, driver: DriverIdSchema, score: ScoreBreakdownSchema }),
   z.object({ type: z.literal('race.finished'), at, record: RunRecordSchema }),

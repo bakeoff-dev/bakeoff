@@ -27,13 +27,17 @@ const agent = (driver: string) => {
 
 const started = (driver: string, time: string): RaceEvent => {
   const a = agent(driver);
-  return { type: 'agent.started', at: at(time), driver: a.driver, branch: a.branch, model: a.model };
+  return {
+    type: 'agent.started', at: at(time), driver: a.driver, branch: a.branch,
+    model: a.model, requestedModel: a.requestedModel,
+  };
 };
 const exited = (driver: string, time: string): RaceEvent => {
   const a = agent(driver);
   return {
     type: 'agent.exited', at: at(time), driver: a.driver, status: a.status,
     exitCode: a.exitCode, durationMs: a.durationMs, costUsd: a.costUsd, tokens: a.tokens,
+    model: a.model,
   };
 };
 const prOpened = (driver: string, time: string): RaceEvent => {
@@ -59,11 +63,13 @@ const events: RaceEvent[] = [
     type: 'agent.progress', at: at('18:02:00'), driver: 'claude', costUsd: 0.31,
     tokens: { input: 40000, output: 2000, cacheRead: 30000, cacheWrite: 12000 },
     lastAction: 'Read src/paginate.ts', filesTouched: 0,
+    logTail: 'Read src/paginate.ts\nRead src/paginate.test.ts',
   },
   {
     type: 'agent.progress', at: at('18:05:00'), driver: 'opencode', costUsd: null,
     tokens: { input: 120000, output: 6000, cacheRead: 0, cacheWrite: 0 },
     lastAction: 'reading src/index.ts', filesTouched: 0,
+    logTail: 'reading src/index.ts',
   },
   exited('codex', '18:06:28'),
   exited('claude', '18:06:52'),

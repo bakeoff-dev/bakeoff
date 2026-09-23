@@ -82,6 +82,8 @@ test/           vitest
 - `share [id]` renders a run's card to `.bakeoff/runs/<id>.png`; the id defaults to the latest run.
 - Build assets (fonts, `ui.html`) are found through `src/render/assets.ts`, which looks beside the module first (`dist/` once bundled) and then in `dist/` from a source checkout. `build:cli` runs `scripts/build-cli.ts`, which derives its externals from `dependencies` -- `--packages external` would externalise the `@contract` alias too and the installed CLI would not start -- and fails the build if `@contract` leaks into the bundle or `@resvg/resvg-js` gets inlined.
 - `ladder` prints this repo's ladder. A null model shows as `auto`.
+- `export [id]` writes `.bakeoff/runs/<id>.html`: the event log injected into `dist/ui.html` at the `<!--BAKEOFF_DATA-->` anchor. `run` writes one at the end of every race and prints its path. It opens from `file://` with no server.
+- `run --watch` starts the live server in `src/cli/server.ts` (`node:http`, never `Bun.serve`). Loopback only, a fresh random token per run on `/events`, `/ladder.json` and `/abort/:driver`, and the next free port from 4141. Without the token any page in the same browser could POST to `/abort` and kill a race.
 
 ## Design
 

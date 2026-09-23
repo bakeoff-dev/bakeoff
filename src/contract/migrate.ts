@@ -117,9 +117,15 @@ export function readLadderJson(raw: unknown): Ladder {
 export function readRaceEvent(raw: unknown): RaceEvent {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
   if (o !== null) {
-    // v1 could not say which model ran, and null is exactly that statement.
-    if (o.type === 'agent.started' && o.model === undefined) {
-      return RaceEventSchema.parse({ ...o, model: null });
+    // Fields added after a log was written; null and "" are the honest readings.
+    if (o.type === 'agent.started') {
+      return RaceEventSchema.parse({ model: null, requestedModel: null, ...o });
+    }
+    if (o.type === 'agent.progress') {
+      return RaceEventSchema.parse({ logTail: '', ...o });
+    }
+    if (o.type === 'agent.exited') {
+      return RaceEventSchema.parse({ model: null, ...o });
     }
     if (o.type === 'race.finished') {
       return RaceEventSchema.parse({ ...o, record: readRunJson(o.record) });

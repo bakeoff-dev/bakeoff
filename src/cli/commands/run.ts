@@ -5,13 +5,16 @@ import { formatAgentSpec, parseAgentSpecs, type AgentSpec } from '../../core/age
 import { loadConfig, parseDuration, type Config } from '../../core/config';
 import { fetchIssue, listOpenIssues, parseIssueRef, type IssueRef } from '../../core/issue';
 import { NAMES, NO_ACCEPTANCE_TEST } from '../../core/names';
-import { defaultDeps, runRace } from '../../core/race';
+import { createAbortRegistry, defaultDeps, runRace } from '../../core/race';
 import { computeBaseline } from '../../core/scorer/checks';
-import { newRunId, paths, readLadder } from '../../core/store';
+import { newRunId, paths, readEvents, readLadder } from '../../core/store';
 import { detectRepo } from '../../core/repo';
 
 import { progressRenderer } from '../render/progress';
 import { finalTable } from '../render/table';
+import { exportScoreboard } from '../scoreboard';
+import { startWatchServer, type WatchServer } from '../server';
+import { openInBrowser } from '../open';
 import { writeCard } from './share';
 import { doctorReport } from './doctor';
 
@@ -107,6 +110,8 @@ export async function runCommand(issueArg: string | undefined, opts: RunOpts): P
   );
 
   const deps = defaultDeps();
+  const abort = createAbortRegistry();
+  deps.abort = abort;
 
   // The baseline runs before any agent, so its warnings arrive before anything is spent.
   const baseline = await computeBaseline({
@@ -115,20 +120,47 @@ export async function runCommand(issueArg: string | undefined, opts: RunOpts): P
   deps.baseline = async () => baseline;
   for (const w of preflightWarnings(config, baseline, repo.root)) p.log.warn(w);
 
+  let watch: WatchServer | null = null;
+  if (opts.watch) {
+    try {
+      watch = await startWatchServer({
+        history: () => readEvents(repo.root, runId),
+        ladder: () => readLadder(repo.root),
+        abort: (driver) => abort.abort(driver),
+      });
+      p.log.info(`watching at ${watch.url}`);
+      await openInBrowser(watch.url);
+    } catch (e) {
+      // A browser view is a convenience; the race still runs and still records.
+      p.log.warn(`could not start the watch server: ${(e as Error).message}`);
+    }
+  }
+
   const live = progressRenderer();
-  deps.onEvent = live.onEvent;
+  const publish = watch;
+  deps.onEvent = (e) => {
+    live.onEvent(e);
+    publish?.publish(e);
+  };
   const rec = await runRace(
     { repoRoot: repo.root, repo, issue, config, agents, caps, runId, keepWorktrees: opts.keepWorktrees },
     deps,
   );
   live.stop();
+  await watch?.close();
 
-  // The card is a nicety; a race that produced a record must not fail on it.
+  // Both are niceties; a race that produced a record must not fail on either.
+  let scoreboardPath: string | null = null;
+  try {
+    scoreboardPath = exportScoreboard(repo.root, runId);
+  } catch (e) {
+    p.log.warn(`could not write the scoreboard: ${(e as Error).message}`);
+  }
   try {
     await writeCard(repo.root, runId);
   } catch (e) {
     p.log.warn(`could not render the share card: ${(e as Error).message}`);
   }
 
-  console.log(finalTable({ record: rec, ladder: readLadder(repo.root) }));
+  console.log(finalTable({ record: rec, ladder: readLadder(repo.root), scoreboardPath }));
 }

@@ -111,6 +111,20 @@ const PROGRESS_MIN_MS = 1000;
 const tail = (file: string, n = 40): string =>
   existsSync(file) ? readFileSync(file, 'utf8').trimEnd().split('\n').slice(-n).join('\n') : '';
 
+const LIVE_TAIL_LINES = 20;
+const LIVE_TAIL_BYTES = 4096;
+
+/**
+ * Recent log for the live drawer: short, one line per line, and bounded. It rides on
+ * every progress event, so it has to stay small enough not to swamp the SSE stream.
+ */
+function liveTail(file: string): string {
+  if (!existsSync(file)) return '';
+  const lines = readFileSync(file, 'utf8').trimEnd().split('\n').slice(-LIVE_TAIL_LINES).map(oneLine);
+  const text = lines.filter((l) => l.length > 0).join('\n');
+  return text.length <= LIVE_TAIL_BYTES ? text : text.slice(-LIVE_TAIL_BYTES);
+}
+
 export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()): Promise<RunRecord> {
   const { repoRoot, repo, issue, config, runId } = input;
   const p = paths(repoRoot);
@@ -229,7 +243,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
         const failed: AgentResult = { ...agent, status: 'crashed', exitCode: null, durationMs: 0 };
         emit({
           type: 'agent.exited', at: at(), driver: agent.driver, status: 'crashed',
-          exitCode: null, durationMs: 0, costUsd: null, tokens: null,
+          exitCode: null, durationMs: 0, costUsd: null, tokens: null, model: agent.model,
         });
         failed.logTail = tail(logPath);
         if (!input.keepWorktrees) await gitLock(() => removeWorktree({ repoRoot, dir }, deps.exec));
@@ -238,7 +252,10 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     }
     // Announced once the agent can actually start: setup runs before it, and a setup
     // failure means it never does.
-    emit({ type: 'agent.started', at: at(), driver: agent.driver, branch: agent.branch, model: agent.model });
+    emit({
+      type: 'agent.started', at: at(), driver: agent.driver, branch: agent.branch,
+      model: agent.model, requestedModel: agent.requestedModel,
+    });
 
     const onEvent = (e: AgentEvent): void => {
       // Agent text is untrusted: a heredoc commit message arrives with real newlines.
@@ -254,6 +271,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
         emit({
           type: 'agent.progress', at: at(), driver: agent.driver,
           costUsd: meter.costUsd, tokens, lastAction, filesTouched: files.size,
+          logTail: liveTail(logPath),
         });
       }
     };
@@ -276,6 +294,7 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     emit({
       type: 'agent.exited', at: at(), driver: agent.driver, status: out.status,
       exitCode: out.exitCode, durationMs: out.durationMs, costUsd: out.costUsd, tokens: out.tokens,
+      model: out.model,
     });
 
     if (out.status === 'ok') {
