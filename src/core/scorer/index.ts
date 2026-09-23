@@ -51,10 +51,10 @@ export async function scoreAgent(
   baselineGreen: boolean | null = null,
   /** May be a promise: it is only awaited once the local checks are done, so both run at once. */
   ci: ScoreComponent | null | Promise<ScoreComponent | null> = null,
-): Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved'>> {
+): Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved' | 'testFilesTouched' | 'testLinesChanged'>> {
   const cfg: Config = ctx.config;
   const testPaths = cfg.test_paths ?? (await defaultTestPaths(ctx.worktree, ctx.baseSha));
-  const stats = await diffStats(ctx.worktree, ctx.baseSha);
+  const stats = await diffStats(ctx.worktree, ctx.baseSha, testPaths);
   const flags = await tamperFlags({
     worktree: ctx.worktree,
     baseSha: ctx.baseSha,
@@ -93,7 +93,14 @@ export async function scoreAgent(
     total: totalOf(components, tamperPenalty),
     maxPossible: maxPossibleOf(components),
   };
-  return { score, filesTouched: stats.files, linesAdded: stats.added, linesRemoved: stats.removed };
+  return {
+    score,
+    filesTouched: stats.files,
+    linesAdded: stats.added,
+    linesRemoved: stats.removed,
+    testFilesTouched: stats.testFiles,
+    testLinesChanged: stats.testLines,
+  };
 }
 
 /**
@@ -103,7 +110,12 @@ export async function scoreAgent(
 export function finalizeScores(agents: AgentResult[], _configured: Configured): AgentResult[] {
   const finishers = agents.filter((a) => a.status === 'ok' && a.score);
   const diff = diffDiscipline(
-    finishers.map((a) => ({ driver: a.driver, files: a.filesTouched, lines: a.linesAdded + a.linesRemoved })),
+    finishers.map((a) => ({
+      driver: a.driver,
+      // The product change: tests are the evidence, not the cost.
+      files: a.filesTouched.filter((f) => !a.testFilesTouched.includes(f)),
+      lines: Math.max(0, a.linesAdded + a.linesRemoved - a.testLinesChanged),
+    })),
   );
   const withDiff = agents.map((a) => {
     const d = diff.get(a.driver);

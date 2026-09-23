@@ -22,12 +22,12 @@ describe('diffStats', () => {
     const repo = await makeRepo({ 'a.ts': 'one\n' });
     writeFileSync(join(repo.dir, 'a.ts'), 'one\ntwo\n');
     writeFileSync(join(repo.dir, 'scratch.ts'), 'untracked\n');
-    expect(await diffStats(repo.dir, repo.sha)).toEqual({ files: [], added: 0, removed: 0 });
+    expect(await diffStats(repo.dir, repo.sha)).toEqual({ files: [], added: 0, removed: 0, testFiles: [], testLines: 0 });
   });
 
   it('reports nothing for a branch with no commits', async () => {
     const repo = await makeRepo({ 'a.ts': 'one\n' });
-    expect(await diffStats(repo.dir, repo.sha)).toEqual({ files: [], added: 0, removed: 0 });
+    expect(await diffStats(repo.dir, repo.sha)).toEqual({ files: [], added: 0, removed: 0, testFiles: [], testLines: 0 });
   });
 });
 

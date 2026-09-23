@@ -120,9 +120,16 @@ Max possible without judge: 100. With judge: 115. Penalties can push a total bel
 | `typecheck` | 7.5 (15 if lint unconfigured) | Exit 0 of `typecheck`. n/a when unconfigured. |
 | `lint` | 7.5 (15 if typecheck unconfigured) | Exit 0 of `lint`. n/a when unconfigured. |
 | `ci` | 10 | `gh pr checks <pr> --json` polled every 15s up to `ci_timeout`. All checks passing = 10. Any failure = 0. Still pending at timeout = 0 with detail "timed out". n/a when the repo has no checks or `ci_timeout: 0`. |
-| `diff` | 10 | Over agents with status `ok`. `L` = lines added + removed, `M` = median of L across finishers. Size = 6 × min(1, M / L). Scope = 4 × (files in consensus set / files touched), consensus set = files touched by at least half the finishers. **L = 0 or files touched = 0 gives 0 for the whole component.** Single finisher gets 10 unless L = 0. |
+| `diff` | 10 | Over agents with status `ok`. **Test files are excluded from both halves** — a file matching the shared `TEST_FILE_NAME` rule or sitting under one of the run's test paths. `L` = non-test lines added + removed, `M` = median of L across finishers. Files touched for the scope term likewise counts non-test files only. Size = 6 × min(1, M / L). Scope = 4 × (files in consensus set / files touched), consensus set = files touched by at least half the finishers. **L = 0 or files touched = 0 gives 0 for the whole component.** Single finisher gets 10 unless L = 0. |
 | `judge` | 15 | Off by default. Diffs anonymized as A/B/C, prompt asks for a 0-15 score per entry with one-line reasons. Labeled "subjective" everywhere it renders. n/a when disabled. |
 | tamper | −25 | Any flag (below) subtracts 25 once. Flags are listed on the card as red flags with the matched rule and file. |
+
+**No acceptance test.** When `hidden_tests` is not configured and the visible suite is
+already green at the base commit, nothing in the run can tell whether the issue was solved:
+every component only shows that nothing broke. The run record carries `noAcceptanceTest:
+true` and the CLI says so in the preflight and above the final table, in these words:
+
+> No test checks this issue. Scores show nothing broke, not that the issue was solved.
 
 Tamper rules, evaluated on `git diff <baseSha>..HEAD` of the agent branch plus untracked files:
 

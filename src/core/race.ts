@@ -34,7 +34,7 @@ export type ScoreAgentFn = (
   ctx: ScoreCtx,
   baselineGreen: boolean | null,
   ci: ScoreComponent | null | Promise<ScoreComponent | null>,
-) => Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved'>>;
+) => Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved' | 'testFilesTouched' | 'testLinesChanged'>>;
 export type FinalizeFn = (agents: AgentResult[], configured: Configured) => AgentResult[];
 
 export interface AbortRegistry { signalFor(driver: DriverId): AbortSignal; abort(driver: DriverId): void }
@@ -141,11 +141,15 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     configured,
     // `model` starts as the request and is replaced by whatever the CLI reports;
     // `requestedModel` never changes, because it is what the ladder rates.
+    // Nothing here can tell whether the issue was solved: no hidden suite, and the
+    // visible one was already green, so every check can only show nothing broke.
+    noAcceptanceTest: !configured.hiddenTests && baseline.testsGreen === true,
     agents: input.agents.map(({ driver: d, model }) => ({
       driver: d, model, requestedModel: model, status: 'running',
       branch: branchName(issue.info.number, d, runId),
       exitCode: null, durationMs: 0, costUsd: null, tokens: null,
       filesTouched: [], linesAdded: 0, linesRemoved: 0,
+      testFilesTouched: [], testLinesChanged: 0,
       prUrl: null, prNumber: null, score: null, rank: null, logTail: '',
     })),
     winner: null,

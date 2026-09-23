@@ -148,3 +148,25 @@ describe('setup runs in every agent worktree', () => {
     expect(rec.agents[0]?.status).toBe('ok');
   });
 });
+
+describe('a race that cannot check the issue says so', () => {
+  it('flags a green baseline with no hidden tests', async () => {
+    const { rec } = await race();
+    expect(rec.baseline.testsGreen).toBe(true);
+    expect(rec.noAcceptanceTest).toBe(true);
+  });
+
+  it('does not flag a race whose baseline was red, because the suite proves the fix', async () => {
+    const { rec } = await race({ config: { test: 'exit 1' } });
+    expect(rec.baseline.testsGreen).toBe(false);
+    expect(rec.noAcceptanceTest).toBe(false);
+  });
+
+  it('records the test share of each diff, so discipline can leave it out', async () => {
+    const { rec } = await race();
+    const claude = rec.agents[0]!;
+    expect(claude.testFilesTouched).toEqual([]);
+    expect(claude.testLinesChanged).toBe(0);
+    expect(claude.filesTouched.length).toBeGreaterThan(0);
+  });
+});

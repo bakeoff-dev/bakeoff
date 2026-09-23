@@ -41,13 +41,24 @@ describe('reading a version-1 run record', () => {
     expect(rec.id).toBe(v1Run.id);
     expect(rec.winner).toBe(v1Run.winner);
     expect(rec.packetHash).toBe(v1Run.packetHash);
-    const stripped = rec.agents.map(({ model, requestedModel, ...rest }) => rest);
+    const stripped = rec.agents.map(
+      ({ model, requestedModel, testFilesTouched, testLinesChanged, ...rest }) => rest,
+    );
     expect(stripped).toEqual(v1Run.agents);
   });
 
   it('still reads a current record unchanged', () => {
     const current = JSON.parse(readFileSync('src/contract/fixtures/run.json', 'utf8'));
     expect(readRunJson(current)).toEqual(current);
+  });
+
+  it('fills the fields added since version 2 without a bump', () => {
+    const v1 = readRunJson(v1Run);
+    expect(v1.noAcceptanceTest).toBe(false);
+    for (const a of v1.agents) {
+      expect(a.testFilesTouched).toEqual([]);
+      expect(a.testLinesChanged).toBe(0);
+    }
   });
 
   it('rejects something that is neither', () => {

@@ -48,6 +48,13 @@ export const AgentResultSchema = z.object({
   filesTouched: z.array(z.string()),
   linesAdded: z.number(),
   linesRemoved: z.number(),
+  /**
+   * The subset of `filesTouched` that are tests, and the lines they account for.
+   * Diff discipline judges the product change, so writing the test that proves the
+   * issue is fixed must not read as a bigger, sloppier diff.
+   */
+  testFilesTouched: z.array(z.string()),
+  testLinesChanged: z.number(),
   prUrl: z.string().nullable(),
   prNumber: z.number().nullable(),
   score: ScoreBreakdownSchema.nullable(),
@@ -79,6 +86,12 @@ export const RunRecordSchema = z.object({
   configured: ConfiguredSchema,
   agents: z.array(AgentResultSchema),
   winner: DriverIdSchema.nullable(),
+  /**
+   * Nothing in this race could tell whether the issue was actually solved: no hidden
+   * tests were configured and the visible suite was already green at the base commit,
+   * so every check only proved nothing broke.
+   */
+  noAcceptanceTest: z.boolean(),
 });
 
 const at = z.string();
