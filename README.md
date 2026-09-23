@@ -169,6 +169,15 @@ but with no scoring, no tamper detection and no history, it is a comparison, not
 
 ## Honest limits
 
+- **Every agent gets full command access in its worktree, with network.** That is the
+  point: a race is only fair if every agent can run the tests, install what it needs, and
+  commit. It also means each agent can run any command your user account can, against the
+  network, on a checkout of your repository. Race only in repositories you would be willing
+  to hand these agents, and expect them to do the things you asked for and some you did not.
+- **A bare agent rates as an "auto" competitor.** `--agents cursor` is one ladder row
+  whatever its provider routes to that day, so its rating mixes whichever models answered.
+  A pinned agent -- `--agents cursor:gpt-5.3-codex-low` -- is the reproducible form, rated
+  on its own row. Pin the model when you want a result you can compare next week.
 - **Hidden tests are unreachable by path, not secret.** The agent runs with your
   permissions and can read the disk. Keeping them outside every worktree stops an agent
   from stumbling onto them and overfitting; it is not a sandbox and will not stop one that

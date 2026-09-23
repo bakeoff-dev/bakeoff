@@ -32,11 +32,12 @@ describe('gemini launch', () => {
     expect((await launch('gemini-3.5-flash')).env?.GEMINI_CLI_TRUST_WORKSPACE).toBe('true');
   });
 
-  it('runs in the worktree and sends the packet as the prompt', async () => {
+  it('runs in the worktree and sends the packet on stdin', async () => {
     const call = await launch(null);
     expect(call.cwd).toBe('/w');
-    expect(call.args.at(-1)).toBe('do the thing');
-    expect(call.args[call.args.indexOf('--prompt') + 1]).toBe('do the thing');
+    // 0.60.0 reads the prompt from stdin, so a large packet never has to fit in argv
+    expect(call.stdin).toBe('do the thing');
+    expect(call.args).not.toContain('--prompt');
   });
 
   it('passes the model flag through', async () => {

@@ -19,7 +19,11 @@ export interface ClaudeResult {
   model: string | null;
 }
 
-const REQUIRED_FLAGS = ['--print', '--output-format', '--max-budget-usd', '--permission-mode', '--add-dir'];
+const REQUIRED_FLAGS = [
+  '--print', '--output-format', '--max-budget-usd', '--permission-mode', '--add-dir',
+  // Not a flag but a choice of --permission-mode; without it Claude races crippled.
+  'bypassPermissions',
+];
 /** Cheapest model that still exercises the full auth path; the probe costs a few cents on Opus. */
 const PROBE_MODEL = 'claude-haiku-4-5';
 const PROBE_BUDGET_USD = '0.25';
@@ -39,7 +43,10 @@ export function claudeArgs(
     '-p',
     '--output-format', 'stream-json',
     '--verbose',
-    '--permission-mode', 'acceptEdits',
+    // Parity: every agent may run any command in its worktree. acceptEdits auto-approves
+    // edits but denies every Bash call in headless mode -- run 20260923-mosj logged eight
+    // denials and ended with Claude unable to run the tests or commit.
+    '--permission-mode', 'bypassPermissions',
     '--max-budget-usd', String(i.caps.budgetUsd),
     '--add-dir', i.worktree,
   ];

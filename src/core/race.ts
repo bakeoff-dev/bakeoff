@@ -116,9 +116,11 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     caps: input.caps,
     baseline,
     configured,
-    // `model` starts as the requested model and is replaced by whatever the CLI reports.
+    // `model` starts as the request and is replaced by whatever the CLI reports;
+    // `requestedModel` never changes, because it is what the ladder rates.
     agents: input.agents.map(({ driver: d, model }) => ({
-      driver: d, model, status: 'running', branch: branchName(issue.info.number, d, runId),
+      driver: d, model, requestedModel: model, status: 'running',
+      branch: branchName(issue.info.number, d, runId),
       exitCode: null, durationMs: 0, costUsd: null, tokens: null,
       filesTouched: [], linesAdded: 0, linesRemoved: 0,
       prUrl: null, prNumber: null, score: null, rank: null, logTail: '',

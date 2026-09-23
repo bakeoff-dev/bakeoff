@@ -1,7 +1,7 @@
 import * as p from '@clack/prompts';
 import type { DriverId } from '@contract';
 import { exec, type Exec } from '../../core/exec';
-import { getDriver } from '../../core/drivers/registry';
+import { allDrivers, getDriver } from '../../core/drivers/registry';
 import { NAMES, TESTED_VERSIONS } from '../../core/names';
 
 export interface DoctorLine { name: string; ok: boolean; detail: string }
@@ -19,9 +19,14 @@ export async function doctorReport(ids: DriverId[], run: Exec = exec): Promise<D
     ok: gh.code === 0,
     detail: gh.code === 0 ? 'logged in' : gh.stderr.trim().split('\n')[0] ?? 'not logged in',
   });
-  for (const id of ids) {
-    const d = getDriver(id);
-    const r = await d.doctor();
+  // Each probe is a real round trip to a provider; run them at once rather than in turn.
+  const probes = await Promise.all(
+    ids.map(async (id) => {
+      const d = getDriver(id);
+      return { d, id, r: await d.doctor() };
+    }),
+  );
+  for (const { d, id, r } of probes) {
     const tested = TESTED[id];
     const notes = [...r.notes];
     if (r.version && tested && r.version !== tested) notes.push(`tested with ${tested}`);
@@ -48,4 +53,9 @@ export async function doctorCommand(ids: DriverId[]): Promise<boolean> {
   const ok = lines.every((l) => l.ok);
   p.outro(ok ? 'All good.' : 'Fix the items above before racing.');
   return ok;
+}
+
+/** Everything the registry knows about, so a new driver needs no flag default updated. */
+export function registeredDriverIds(): DriverId[] {
+  return allDrivers().map((d) => d.id);
 }

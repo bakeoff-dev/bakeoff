@@ -18,12 +18,30 @@ describe('reading a version-1 run record', () => {
     for (const a of rec.agents) expect(a.model).toBeNull();
   });
 
+  it('fills requestedModel with null, which was added without a version bump', () => {
+    const rec = readRunJson(v1Run);
+    for (const a of rec.agents) expect(a.requestedModel).toBeNull();
+  });
+
+  it('fills requestedModel on a version-2 record written before the field existed', () => {
+    const current = JSON.parse(readFileSync('src/contract/fixtures/run.json', 'utf8'));
+    const stripped = {
+      ...current,
+      agents: current.agents.map(({ requestedModel, ...rest }: Record<string, unknown>) => rest),
+    };
+    const rec = readRunJson(stripped);
+    expect(rec.schemaVersion).toBe(SCHEMA_VERSION);
+    for (const a of rec.agents) expect(a.requestedModel).toBeNull();
+    // the model that ran is untouched; only the new field defaults
+    expect(rec.agents[0]?.model).toBe('claude-opus-5');
+  });
+
   it('changes nothing else', () => {
     const rec = readRunJson(v1Run);
     expect(rec.id).toBe(v1Run.id);
     expect(rec.winner).toBe(v1Run.winner);
     expect(rec.packetHash).toBe(v1Run.packetHash);
-    const stripped = rec.agents.map(({ model, ...rest }) => rest);
+    const stripped = rec.agents.map(({ model, requestedModel, ...rest }) => rest);
     expect(stripped).toEqual(v1Run.agents);
   });
 

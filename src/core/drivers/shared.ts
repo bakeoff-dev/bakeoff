@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { TokenUsage } from '@contract';
 import { exec } from '../exec';
 import { runProcess } from '../process';
@@ -63,15 +66,22 @@ export async function probeDoctor(spec: ProbeSpec): Promise<DriverDoctor> {
   const notes = missing.length ? [`missing flags: ${missing.join(' ')}`] : [];
 
   const out: string[] = [];
-  const probe = await runProcess({
-    cmd: spec.bin,
-    args: spec.probeArgs,
-    cwd: (await exec('mktemp', ['-d'])).stdout.trim() || '/tmp',
-    env: spec.probeEnv,
-    timeoutMs: spec.timeoutMs ?? PROBE_TIMEOUT_MS,
-    stdin: spec.probeStdin ?? '',
-    onStdoutLine: (l) => out.push(l),
-  });
+  const dir = mkdtempSync(join(tmpdir(), 'bakeoff-probe-'));
+  let probe;
+  try {
+    probe = await runProcess({
+      cmd: spec.bin,
+      args: spec.probeArgs,
+      cwd: dir,
+      env: spec.probeEnv,
+      timeoutMs: spec.timeoutMs ?? PROBE_TIMEOUT_MS,
+      stdin: spec.probeStdin ?? '',
+      onStdoutLine: (l) => out.push(l),
+    });
+  } finally {
+    // The probe writes session state into its cwd; leaving one per doctor run adds up.
+    rmSync(dir, { recursive: true, force: true });
+  }
   const authOk = probe.status === 'ok' && spec.probeOk(out.join('\n'), probe.exitCode);
   if (!authOk) {
     notes.push(
