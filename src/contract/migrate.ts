@@ -11,7 +11,7 @@ import {
  * schema bump would otherwise make every past race unreadable and reset the ladder.
  * These are frozen copies: never widen them to accept newer fields.
  */
-const AgentResultV1Schema = AgentResultSchema.omit({ model: true });
+const AgentResultV1Schema = AgentResultSchema.omit({ model: true, requestedModel: true });
 const RunRecordV1Schema = RunRecordSchema.omit({ schemaVersion: true, agents: true }).extend({
   schemaVersion: z.literal(1),
   agents: z.array(AgentResultV1Schema),
@@ -31,16 +31,37 @@ function unknownVersion(what: string, raw: unknown): Error {
   );
 }
 
+/**
+ * `requestedModel` was added to version 2 without a bump, because it is additive and
+ * null is the honest reading of a record written before it existed: we cannot know
+ * afterwards whether the model on it was pinned or picked.
+ */
+function fillAdditive(raw: unknown): unknown {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  if (o === null || !Array.isArray(o.agents)) return raw;
+  return {
+    ...o,
+    agents: o.agents.map((a) => {
+      const agent = a && typeof a === 'object' ? (a as Record<string, unknown>) : {};
+      return agent.requestedModel === undefined ? { ...agent, requestedModel: null } : agent;
+    }),
+  };
+}
+
 /** Parse a run record from disk, migrating version 1 forward. */
 export function readRunJson(raw: unknown): RunRecord {
   const version = versionOf(raw);
-  if (version === SCHEMA_VERSION) return RunRecordSchema.parse(raw);
+  if (version === SCHEMA_VERSION) return RunRecordSchema.parse(fillAdditive(raw));
   if (version === 1) {
     const v1 = RunRecordV1Schema.parse(raw);
     // v1 never recorded which model ran, and null is exactly that statement.
-    return { ...v1, schemaVersion: SCHEMA_VERSION, agents: v1.agents.map((a) => ({ ...a, model: null })) };
+    return {
+      ...v1,
+      schemaVersion: SCHEMA_VERSION,
+      agents: v1.agents.map((a) => ({ ...a, model: null, requestedModel: null })),
+    };
   }
-  if (version === undefined) return RunRecordSchema.parse(raw);
+  if (version === undefined) return RunRecordSchema.parse(fillAdditive(raw));
   throw unknownVersion('run record', raw);
 }
 

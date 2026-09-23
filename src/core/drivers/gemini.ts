@@ -13,7 +13,7 @@ export interface GeminiResult {
   model: string | null;
 }
 
-const REQUIRED_FLAGS = ['--model', '--output-format', '--approval-mode', '--prompt'];
+const REQUIRED_FLAGS = ['--model', '--output-format', '--approval-mode', 'yolo'];
 /**
  * Every Bakeoff worktree is a directory Gemini has never seen, and 0.60.0 exits 55
  * rather than run in one. The env var is the reliable opt-in; `--skip-trust` does the
@@ -25,14 +25,14 @@ const WRITE_TOOLS = ['write_file', 'replace', 'edit'];
 /** Gemini prints "[STARTUP] ..." and other diagnostics on the stream; they are not events. */
 const NOISE = /^\s*\[[A-Z]+\]/;
 
+/** 0.60.0 reads the prompt from stdin, so the packet never has to fit in argv. */
 export function geminiArgs(
-  i: { caps: Caps; worktree: string; model?: string | null; packet: string },
+  i: { caps: Caps; worktree: string; model?: string | null },
   opts: { skipTrust: boolean },
 ): string[] {
   const args = ['--output-format', 'stream-json', '--approval-mode', 'yolo'];
   if (i.model) args.push('--model', i.model);
   if (opts.skipTrust) args.push(TRUST_FLAG);
-  args.push('--prompt', i.packet);
   return args;
 }
 
@@ -129,8 +129,9 @@ export const geminiDriver: Driver = {
       bin: 'gemini',
       installHint: 'install: npm i -g @google/gemini-cli',
       requiredFlags: REQUIRED_FLAGS,
-      probeArgs: ['--output-format', 'stream-json', '--approval-mode', 'yolo', '--prompt', 'say ok'],
+      probeArgs: ['--output-format', 'stream-json', '--approval-mode', 'yolo'],
       probeEnv: { ...TRUST_ENV },
+      probeStdin: 'say ok',
       probeOk: (stdout) =>
         stdout.split('\n').some((l) => {
           const o = jsonLine(l);
@@ -147,10 +148,10 @@ export const geminiDriver: Driver = {
     const stream = createGeminiStream();
     const r = await runProcess({
       cmd: 'gemini',
-      args: geminiArgs({ ...input, packet: input.packet }, { skipTrust }),
+      args: geminiArgs(input, { skipTrust }),
       cwd: input.worktree,
       env: { ...TRUST_ENV },
-      stdin: '',
+      stdin: input.packet,
       timeoutMs: input.caps.timeoutMs,
       signal: input.signal,
       meter: input.meter,

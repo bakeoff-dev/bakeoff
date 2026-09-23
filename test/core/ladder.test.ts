@@ -39,8 +39,11 @@ describe('ladder', () => {
     const twoModels = {
       ...rec,
       agents: [
-        { ...rec.agents[0]!, model: 'claude-opus-5', rank: 1 },
-        { ...rec.agents[1]!, driver: 'claude' as const, model: 'claude-sonnet-5', rank: 2 },
+        { ...rec.agents[0]!, model: 'claude-opus-5', requestedModel: 'claude-opus-5', rank: 1 },
+        {
+          ...rec.agents[1]!, driver: 'claude' as const,
+          model: 'claude-sonnet-5', requestedModel: 'claude-sonnet-5', rank: 2,
+        },
       ],
     };
     const ladder = updateLadder({ schemaVersion: SCHEMA_VERSION, entries: {} }, twoModels);
@@ -48,6 +51,26 @@ describe('ladder', () => {
     expect(ladder.entries['claude:claude-opus-5']!.rating).toBeGreaterThan(
       ladder.entries['claude:claude-sonnet-5']!.rating,
     );
+  });
+
+  it('keeps a bare agent in one row however its provider routes it', () => {
+    // cursor on auto routed to "GPT-5.6 Sol 1M High" one run and "Codex 5.3 Low" the
+    // next; keying on what ran would scatter one competitor across a row per model.
+    const race = (runId: string, ran: string) => ({
+      ...rec,
+      id: runId,
+      agents: [
+        { ...rec.agents[0]!, driver: 'cursor' as const, model: ran, requestedModel: null, rank: 1 },
+        { ...rec.agents[1]!, driver: 'claude' as const, model: 'claude-opus-5', requestedModel: 'claude-opus-5', rank: 2 },
+      ],
+    });
+    let ladder = updateLadder({ schemaVersion: SCHEMA_VERSION, entries: {} }, race('r1', 'gpt-5.6-sol-1m-high'));
+    ladder = updateLadder(ladder, race('r2', 'codex-5.3-low'));
+
+    expect(Object.keys(ladder.entries).sort()).toEqual(['claude:claude-opus-5', 'cursor']);
+    expect(ladder.entries.cursor?.races).toBe(2);
+    expect(ladder.entries.cursor?.wins).toBe(2);
+    expect(ladder.entries.cursor?.model).toBeNull();
   });
 
   it('is idempotent per run id', () => {

@@ -37,6 +37,7 @@
     {
       "driver": "claude",
       "model": "claude-opus-5",
+      "requestedModel": "claude-opus-5",
       "status": "ok",
       "branch": "bakeoff/7-claude-20260902-k7q2",
       "exitCode": 0,
@@ -112,6 +113,7 @@
     {
       "driver": "codex",
       "model": "gpt-5.6-sol",
+      "requestedModel": "gpt-5.6-sol",
       "status": "ok",
       "branch": "bakeoff/7-codex-20260902-k7q2",
       "exitCode": 0,
@@ -194,6 +196,7 @@
     {
       "driver": "opencode",
       "model": null,
+      "requestedModel": null,
       "status": "timeout",
       "branch": "bakeoff/7-opencode-20260902-k7q2",
       "exitCode": null,

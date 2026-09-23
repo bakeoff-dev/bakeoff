@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { DriverIdSchema } from '@contract';
 import { NAMES } from '../core/names';
-import { doctorCommand } from './commands/doctor';
+import { doctorCommand, registeredDriverIds } from './commands/doctor';
 import { initCommand } from './commands/init';
 import { runCommand } from './commands/run';
 import '../core/drivers/index';
@@ -15,9 +15,11 @@ const program = new Command()
 program
   .command('doctor')
   .description('Check git, gh, and agent CLIs')
-  .option('-a, --agents <list>', 'comma-separated drivers', 'claude,codex,opencode')
-  .action(async (o: { agents: string }) => {
-    const ids = o.agents.split(',').map((s) => DriverIdSchema.parse(s.trim()));
+  .option('-a, --agents <list>', 'comma-separated drivers; defaults to every registered driver')
+  .action(async (o: { agents?: string }) => {
+    const ids = o.agents
+      ? o.agents.split(',').map((s) => DriverIdSchema.parse(s.trim()))
+      : registeredDriverIds();
     process.exit((await doctorCommand(ids)) ? 0 : 1);
   });
 

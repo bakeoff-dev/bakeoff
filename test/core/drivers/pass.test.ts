@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '../../../src/core/drivers/types';
 import { codexArgs, parseCodexLine } from '../../../src/core/drivers/codex';
+import { claudeArgs } from '../../../src/core/drivers/claude';
 import { TRUST_ENV, createGeminiStream, geminiArgs, parseGeminiLine } from '../../../src/core/drivers/gemini';
 import { cursorArgs, parseCursorLine } from '../../../src/core/drivers/cursor';
 import { normalizeModel } from '../../../src/core/drivers/types';
@@ -35,7 +36,7 @@ describe('codex', () => {
     expect(codexArgs({ caps: CAPS, worktree: '/w' })).not.toContain('--model');
     const withModel = codexArgs({ caps: CAPS, worktree: '/w', model: 'gpt-6-luna' });
     expect(withModel[withModel.indexOf('--model') + 1]).toBe('gpt-6-luna');
-    expect(codexArgs({ caps: CAPS, worktree: '/w' })).toContain('workspace-write');
+    expect(codexArgs({ caps: CAPS, worktree: '/w' })).toContain('danger-full-access');
   });
 
   it('prices against the requested model, since the stream never names one', () => {
@@ -109,13 +110,13 @@ describe('gemini', () => {
   it('asks for trust every way it can, because a fresh worktree is never trusted', () => {
     // 0.60.0 exits 55 in an untrusted folder and every worktree is new
     expect(TRUST_ENV).toEqual({ GEMINI_CLI_TRUST_WORKSPACE: 'true' });
-    expect(geminiArgs({ caps: CAPS, worktree: '/w', packet: 'p' }, { skipTrust: true })).toContain('--skip-trust');
-    expect(geminiArgs({ caps: CAPS, worktree: '/w', packet: 'p' }, { skipTrust: false })).not.toContain('--skip-trust');
+    expect(geminiArgs({ caps: CAPS, worktree: '/w' }, { skipTrust: true })).toContain('--skip-trust');
+    expect(geminiArgs({ caps: CAPS, worktree: '/w' }, { skipTrust: false })).not.toContain('--skip-trust');
   });
 
   it('passes --model only when one is asked for', () => {
-    expect(geminiArgs({ caps: CAPS, worktree: '/w', packet: 'p' }, { skipTrust: false })).not.toContain('--model');
-    const a = geminiArgs({ caps: CAPS, worktree: '/w', packet: 'p', model: 'gemini-3.5-flash' }, { skipTrust: false });
+    expect(geminiArgs({ caps: CAPS, worktree: '/w' }, { skipTrust: false })).not.toContain('--model');
+    const a = geminiArgs({ caps: CAPS, worktree: '/w', model: 'gemini-3.5-flash' }, { skipTrust: false });
     expect(a[a.indexOf('--model') + 1]).toBe('gemini-3.5-flash');
   });
 });
@@ -170,5 +171,35 @@ describe('normalizeModel', () => {
     expect(normalizeModel('Codex 5.3 Low')).toBe('codex-5.3-low');
     expect(normalizeModel('claude-opus-5')).toBe('claude-opus-5');
     expect(normalizeModel('  Gemini 3.5 Flash  ')).toBe('gemini-3.5-flash');
+  });
+});
+
+describe('parity: every agent may run any command in its worktree', () => {
+  // Claude ran with acceptEdits, which auto-approves edits but denies every Bash call
+  // in headless mode. Run 20260923-mosj logged eight denials and ended with Claude
+  // reporting it could not run the tests or commit. The others already had full access.
+  it('claude asks for bypassPermissions, not acceptEdits', () => {
+    const args = claudeArgs({ caps: CAPS, worktree: '/w' }, { bare: false });
+    expect(args[args.indexOf('--permission-mode') + 1]).toBe('bypassPermissions');
+    expect(args).not.toContain('acceptEdits');
+  });
+
+  it('codex asks for danger-full-access, not workspace-write', () => {
+    const args = codexArgs({ caps: CAPS, worktree: '/w' });
+    expect(args[args.indexOf('--sandbox') + 1]).toBe('danger-full-access');
+    expect(args).not.toContain('workspace-write');
+  });
+
+  it('gemini asks for yolo approval', () => {
+    const args = geminiArgs({ caps: CAPS, worktree: '/w' }, { skipTrust: false });
+    expect(args[args.indexOf('--approval-mode') + 1]).toBe('yolo');
+  });
+
+  it('cursor asks for force', () => {
+    expect(cursorArgs({ caps: CAPS, packet: 'p' })).toContain('--force');
+  });
+
+  it('gemini takes the packet on stdin, so a large one cannot overflow argv', () => {
+    expect(geminiArgs({ caps: CAPS, worktree: '/w' }, { skipTrust: false })).not.toContain('--prompt');
   });
 });

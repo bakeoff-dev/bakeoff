@@ -4,13 +4,17 @@ import { rate, rating as newRating } from 'openskill';
 export const displayRating = (mu: number, sigma: number): number =>
   Math.round(1000 + 40 * (mu - 3 * sigma));
 
-/** A competitor is a driver on a model: the same CLI on two models rates separately. */
-function entry(ladder: Ladder, agent: Pick<AgentResult, 'driver' | 'model'>): LadderEntry {
+/**
+ * A competitor is a driver plus the model the user *asked* for. Keying on what ran
+ * would scatter one bare agent across a row per model its provider happened to route
+ * to; keying on the request keeps "cursor on auto" a single, comparable competitor.
+ */
+function entry(ladder: Ladder, agent: Pick<AgentResult, 'driver' | 'requestedModel'>): LadderEntry {
   const initial = newRating();
   return (
-    ladder.entries[competitorKey(agent.driver, agent.model)] ?? {
+    ladder.entries[competitorKey(agent.driver, agent.requestedModel)] ?? {
       driver: agent.driver,
-      model: agent.model,
+      model: agent.requestedModel,
       mu: initial.mu,
       sigma: initial.sigma,
       rating: displayRating(initial.mu, initial.sigma),
@@ -56,7 +60,7 @@ export function updateLadder(ladder: Ladder, rec: RunRecord): Ladder {
             : (current.avgCostUsd * current.races + agent.costUsd) / races;
       const rating = displayRating(next.mu, next.sigma);
 
-      entries[competitorKey(agent.driver, agent.model)] = {
+      entries[competitorKey(agent.driver, agent.requestedModel)] = {
         ...current,
         mu: next.mu,
         sigma: next.sigma,
@@ -72,7 +76,7 @@ export function updateLadder(ladder: Ladder, rec: RunRecord): Ladder {
   }
 
   for (const agent of rec.agents) {
-    const key = competitorKey(agent.driver, agent.model);
+    const key = competitorKey(agent.driver, agent.requestedModel);
     if (entries[key]?.history.some((history) => history.runId === rec.id)) {
       continue;
     }

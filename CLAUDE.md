@@ -53,7 +53,9 @@ test/           vitest
 
 ## Driver notes
 
-- Claude Code 2.1.259 is installed and verified. `--max-turns` does not exist in this version; `maxTurns` is ignored for Claude.
+- Claude Code 2.1.263 is installed and verified. `--max-turns` does not exist in this version; `maxTurns` is ignored for Claude.
+- Parity rule: every agent may run any command in its worktree, with network. Claude uses `--permission-mode bypassPermissions`, Codex `--sandbox danger-full-access`, Gemini `--approval-mode yolo`, Cursor `--force`. `acceptEdits` denies every Bash call in headless mode and must not be used.
+- Gemini 0.60.0 reads the prompt from stdin, so the packet does not go in argv.
 - Codex 0.156.0, Gemini 0.60.0 and cursor-agent 2026.09.02 are installed and verified. OpenCode has a schema slot and a UI colour but no driver yet.
 - Codex names no model anywhere in `--json`, so a default-model run meters to `cost: null`. Its prompt must go on stdin; passed as an argument it still blocks waiting for stdin to close.
 - Gemini exits 55 in a folder it has not been told to trust, and every worktree is new. `GEMINI_CLI_TRUST_WORKSPACE=true` goes in the launch and probe env; `--skip-trust` is feature-detected as a second route.

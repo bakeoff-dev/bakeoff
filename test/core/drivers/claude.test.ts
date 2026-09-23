@@ -57,7 +57,7 @@ describe('claudeArgs', () => {
     const args = claudeArgs({ caps: { budgetUsd: 2.5, timeoutMs: 1, maxTurns: 10 }, worktree: '/w' }, { bare: false });
     expect(args).toEqual([
       '-p', '--output-format', 'stream-json', '--verbose',
-      '--permission-mode', 'acceptEdits', '--max-budget-usd', '2.5', '--add-dir', '/w',
+      '--permission-mode', 'bypassPermissions', '--max-budget-usd', '2.5', '--add-dir', '/w',
     ]);
     expect(claudeArgs({ caps: { budgetUsd: 1, timeoutMs: 1, maxTurns: null }, worktree: '/w' }, { bare: true })).toContain('--bare');
   });

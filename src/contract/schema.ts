@@ -33,6 +33,12 @@ export const AgentResultSchema = z.object({
   driver: DriverIdSchema,
   /** The model that actually ran, as the CLI reported it. null means the CLI's own default. */
   model: z.string().nullable(),
+  /**
+   * What the user asked for: null for a bare agent, the pinned id otherwise. This is
+   * the ladder's identity, so an auto-routing agent stays one competitor however its
+   * provider routes it run to run.
+   */
+  requestedModel: z.string().nullable(),
   status: AgentStatusSchema,
   branch: z.string(),
   exitCode: z.number().nullable(),

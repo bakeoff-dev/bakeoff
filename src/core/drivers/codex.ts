@@ -13,16 +13,17 @@ export interface CodexResult {
   errorMessage: string | null;
 }
 
-const REQUIRED_FLAGS = ['--json', '--model', '--sandbox', '--cd'];
+const REQUIRED_FLAGS = ['--json', '--model', '--sandbox', '--cd', 'danger-full-access'];
 const WRITE_ITEMS = ['file_change', 'patch_apply'];
 
 /**
- * Codex writes files by running shell commands, so `-s workspace-write` is what makes
- * the run able to do anything at all. The prompt goes on stdin: passed as an argument
- * Codex still blocks waiting for stdin to close.
+ * Parity: every agent may run any command in its worktree, with network. Under
+ * `workspace-write` Codex still sandboxes commands and blocks the network, so it
+ * could not install a dependency or reach a service the task needs. The prompt goes
+ * on stdin: passed as an argument Codex still blocks waiting for stdin to close.
  */
 export function codexArgs(i: { caps: Caps; worktree: string; model?: string | null }): string[] {
-  const args = ['exec', '--json', '--sandbox', 'workspace-write', '--cd', i.worktree];
+  const args = ['exec', '--json', '--sandbox', 'danger-full-access', '--cd', i.worktree];
   if (i.model) args.push('--model', i.model);
   return args;
 }
