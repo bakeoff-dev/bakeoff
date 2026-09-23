@@ -8,10 +8,30 @@ describe('parseTestCounts', () => {
   it('reads common runners', () => {
     expect(parseTestCounts('Tests  9 passed (9)')).toEqual({ passed: 9, total: 9 });
     expect(parseTestCounts('Tests  2 failed | 7 passed (9)')).toEqual({ passed: 7, total: 9 });
+    expect(parseTestCounts('Tests  7 passed | 2 skipped (9)')).toEqual({ passed: 7, total: 9 });
+    expect(parseTestCounts('Tests:       1 failed, 8 passed, 9 total')).toEqual({ passed: 8, total: 9 });
     expect(parseTestCounts(' 9 pass\n 0 fail')).toEqual({ passed: 9, total: 9 });
     expect(parseTestCounts('===== 8 passed, 1 failed in 0.3s =====')).toEqual({ passed: 8, total: 9 });
     expect(parseTestCounts('ok  \tgithub.com/x/y\t0.02s\nFAIL\tgithub.com/x/z\t0.10s')).toEqual({ passed: 1, total: 2 });
     expect(parseTestCounts('no idea')).toBeNull();
+  });
+
+  it('sees through color', () => {
+    expect(parseTestCounts('\u001b[1m\u001b[32m Tests \u001b[39m\u001b[22m  9 passed \u001b[2m(9)\u001b[22m')).toEqual({ passed: 9, total: 9 });
+  });
+
+  // node:test speaks TAP, where every passing assertion is its own "ok N - name" line.
+  // Counting those as Go packages reported a clean sweep for a run that failed.
+  it('does not mistake TAP output for go test', () => {
+    const tap = 'TAP version 13\nok 1 - adds\nnot ok 2 - subtracts\n1..2\n# pass 1\n# fail 1';
+    expect(parseTestCounts(tap, false)).toBeNull();
+    expect(parseTestCounts(tap, true)).toBeNull();
+  });
+
+  it('never reports a clean sweep for a red run', () => {
+    expect(parseTestCounts(' 9 pass\n 0 fail', false)).toBeNull();
+    expect(parseTestCounts('Tests  9 passed (9)', false)).toBeNull();
+    expect(parseTestCounts('Tests  2 failed | 7 passed (9)', false)).toEqual({ passed: 7, total: 9 });
   });
 });
 
@@ -42,6 +62,7 @@ describe('visibleTestsComponent', () => {
     });
     expect(c).toMatchObject({ id: 'visible_tests', max: 50, awarded: 0 });
     expect(c.detail).toContain('baseline red');
+    expect(c.detail).not.toContain('passed');
   });
 
   it('is n/a when no test command is configured', async () => {
