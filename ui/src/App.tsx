@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { loadBootstrap, useLadder, useRaceState } from './data';
+import { loadBootstrap, useLadder, useRace } from './data';
 import { Ladder } from './screens/Ladder';
 import { Race } from './screens/Race';
 import { Scoreboard } from './screens/Scoreboard';
@@ -10,7 +10,7 @@ type Tab = 'race' | 'scoreboard' | 'ladder';
 const TABS: [Tab, string][] = [['race', 'Race'], ['scoreboard', 'Scoreboard'], ['ladder', 'Ladder']];
 
 export function App() {
-  const state = useRaceState(bootstrap);
+  const { state, extras } = useRace(bootstrap);
   const ladder = useLadder(bootstrap, state.finished);
   const [tab, setTab] = useState<Tab>(state.finished ? 'scoreboard' : 'race');
   useEffect(() => {
@@ -34,7 +34,7 @@ export function App() {
         ))}
       </nav>
       {tab === 'scoreboard' && <Scoreboard state={state} />}
-      {tab === 'race' && <Race state={state} bootstrap={bootstrap} />}
+      {tab === 'race' && <Race state={state} extras={extras} bootstrap={bootstrap} />}
       {tab === 'ladder' && <Ladder ladder={ladder} state={state} />}
     </div>
   );

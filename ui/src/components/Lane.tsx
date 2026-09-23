@@ -2,6 +2,7 @@ import { useState, type MouseEvent } from 'react';
 import type { AgentLane, RunRecord } from '@contract';
 import { Dot } from './Dot';
 import { Pill } from './Pill';
+import { noExtra, tokenFrom, withToken, type LaneExtra } from '../data';
 import { ModelLine } from './ModelLine';
 import { DRIVER_META, T, fmtClock, fmtCost, fmtTok, ghostButton, modelLabel } from '../theme';
 import { useNow } from '../useNow';
@@ -19,6 +20,13 @@ export function elapsedOf(lane: AgentLane, now: number): number {
 export const costFillPct = (costUsd: number | null, budget: number): number =>
   costUsd === null || budget <= 0 ? 0 : Math.min(100, (costUsd / budget) * 100);
 
+/**
+ * The drawer's contents. `agent.progress` carries a rolling tail while the agent runs;
+ * the finished record carries the whole one, so it wins once it exists.
+ */
+export const laneLog = (liveTail: string, recordTail: string): string =>
+  recordTail || liveTail || 'Waiting for the first log lines';
+
 const Meter = ({ value, label }: { value: string; label: string }) => (
   <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
     <span style={{ fontSize: 14, fontWeight: 500 }}>{value}</span>
@@ -27,18 +35,19 @@ const Meter = ({ value, label }: { value: string; label: string }) => (
 );
 
 export function Lane({
-  lane, budget, record, live, last,
-}: { lane: AgentLane; budget: number; record: RunRecord | null; live: boolean; last: boolean }) {
+  lane, extra = noExtra, budget, record, live, last,
+}: { lane: AgentLane; extra?: LaneExtra; budget: number; record: RunRecord | null; live: boolean; last: boolean }) {
   const [open, setOpen] = useState(false);
   const running = lane.status === 'running';
   const now = useNow(running);
   const elapsed = elapsedOf(lane, now);
   const meta = DRIVER_META[lane.driver];
   const fillPct = costFillPct(lane.costUsd, budget);
-  const tail = record?.agents.find((a) => a.driver === lane.driver)?.logTail ?? '';
+  const tail = laneLog(extra.logTail, record?.agents.find((a) => a.driver === lane.driver)?.logTail ?? '');
   const abort = (e: MouseEvent) => {
     e.stopPropagation();
-    void fetch(`/abort/${lane.driver}`, { method: 'POST' });
+    // Same token the page was opened with; the server 401s every route but `/` without it.
+    void fetch(withToken(`/abort/${lane.driver}`, tokenFrom(window.location.search)), { method: 'POST' });
   };
   return (
     <div style={{ borderBottom: last ? 'none' : `1px solid ${T.divider}` }}>
@@ -53,8 +62,7 @@ export function Lane({
               <span style={{ fontSize: 15, fontWeight: 500 }}>{meta.name}</span>
               <Pill status={lane.status} size={11} label={lane.status === 'ok' && lane.prUrl ? 'PR open' : undefined} />
             </div>
-            {/* A lane only ever learns what started, never what was asked for. */}
-            <ModelLine text={modelLabel(lane.model, undefined)} indent={18} />
+            <ModelLine text={modelLabel(extra.model ?? lane.model, extra.requestedModel)} indent={18} />
           </div>
           <span style={{ fontSize: 13, color: T.dim, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
             {lane.lastAction || (running ? 'starting' : '')}
@@ -102,7 +110,7 @@ export function Lane({
             display: 'flex', flexDirection: 'column', gap: 5, fontFamily: T.mono, fontSize: 12, lineHeight: 1.5, color: T.dim,
           }}
         >
-          {(tail || 'Log available when the agent exits').split('\n').map((line, i) => (
+          {tail.split('\n').map((line, i) => (
             <span key={i} style={{ whiteSpace: 'pre', color: logColor(line) }}>{line}</span>
           ))}
         </div>
