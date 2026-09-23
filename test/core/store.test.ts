@@ -18,8 +18,8 @@ describe('store', () => {
     writeRun(root, fixture);
     expect(readRun(root, fixture.id)).toEqual(fixture);
     expect(listRunIds(root)).toEqual([fixture.id]);
-    appendEvent(root, fixture.id, { type: 'agent.started', at: 'a', driver: 'claude', branch: 'b', model: null });
-    appendEvent(root, fixture.id, { type: 'agent.started', at: 'a', driver: 'codex', branch: 'c', model: null });
+    appendEvent(root, fixture.id, { type: 'agent.started', at: 'a', driver: 'claude', branch: 'b', model: null, requestedModel: null });
+    appendEvent(root, fixture.id, { type: 'agent.started', at: 'a', driver: 'codex', branch: 'c', model: null, requestedModel: null });
     expect(readEvents(root, fixture.id)).toHaveLength(2);
     expect(readLadder(root)).toEqual({ schemaVersion: SCHEMA_VERSION, entries: {} });
     writeLadder(root, { schemaVersion: SCHEMA_VERSION, entries: { claude: { driver: 'claude', model: null, mu: 25, sigma: 8.33, rating: 1000, races: 0, wins: 0, avgCostUsd: null, avgDurationMs: 0, history: [] } } });

@@ -57,7 +57,7 @@ describe('progressRenderer', () => {
     const r = progressRenderer(out);
     r.onEvent(started);
     const firstLines = (chunks.at(-1) ?? '').split('\n').length - 1;
-    r.onEvent({ type: 'agent.started', at: 'x', driver: 'claude', branch: 'b', model: null });
+    r.onEvent({ type: 'agent.started', at: 'x', driver: 'claude', branch: 'b', model: null, requestedModel: null });
     // second draw moves the cursor up by exactly the number of lines it drew
     expect(chunks.at(-2)).toBe(`\x1b[${firstLines}A\x1b[J`);
     r.stop();
@@ -72,7 +72,7 @@ describe('progressRenderer', () => {
     r.onEvent(started);
     r.onEvent({
       type: 'agent.progress', at: 'x', driver: 'claude', costUsd: 1.2,
-      tokens: null, lastAction: 'Edit src/paginate.ts', filesTouched: 3,
+      tokens: null, lastAction: 'Edit src/paginate.ts', filesTouched: 3, logTail: '',
     });
     const frame = chunks.at(-1) ?? '';
     expect(frame).toContain('Edit src/paginate.ts');
@@ -101,7 +101,7 @@ describe('progressRenderer redraw under a wrapping terminal', () => {
       r.onEvent({
         type: 'agent.progress', at: 'x', driver: 'claude', costUsd: 0.53,
         tokens: { input: 20, output: 2605, cacheRead: 300_308, cacheWrite: 23_783 },
-        lastAction: 'Bash /opt/homebrew/bin/bun test', filesTouched: 0,
+        lastAction: 'Bash /opt/homebrew/bin/bun test', filesTouched: 0, logTail: '',
       });
     }
     return r;
@@ -171,7 +171,7 @@ describe('progressRenderer on resize', () => {
     r.onEvent(started);
     writes.length = 0;
     handlers.resize?.();
-    r.onEvent({ type: 'agent.started', at: 'x', driver: 'claude', branch: 'b', model: null });
+    r.onEvent({ type: 'agent.started', at: 'x', driver: 'claude', branch: 'b', model: null, requestedModel: null });
     // no cursor-up: the rows on screen re-wrapped and their count is unknown
     expect(writes.some((w) => /\x1b\[\d+A/.test(w))).toBe(false);
     r.stop();
@@ -199,7 +199,7 @@ describe('progressRenderer with hostile action text', () => {
     r.onEvent(started3);
     r.onEvent({
       type: 'agent.progress', at: 'x', driver: 'claude', costUsd: 0.5,
-      tokens: null, lastAction: action, filesTouched: 2,
+      tokens: null, lastAction: action, filesTouched: 2, logTail: '',
     });
     const height = term.rows.length;
     r.stop();
@@ -220,7 +220,7 @@ describe('progressRenderer with hostile action text', () => {
     for (let i = 0; i < 6; i += 1) {
       r.onEvent({
         type: 'agent.progress', at: 'x', driver: 'claude', costUsd: 0.5,
-        tokens: null, lastAction: RECORDED_ACTION, filesTouched: 2,
+        tokens: null, lastAction: RECORDED_ACTION, filesTouched: 2, logTail: '',
       });
     }
     expect(term.countMatching(/bakeoff-dev\/scratch #3/)).toBe(1);
@@ -241,7 +241,7 @@ describe('progressRenderer with hostile action text', () => {
     r.onEvent(started3);
     r.onEvent({
       type: 'agent.progress', at: 'x', driver: 'claude', costUsd: 0.5,
-      tokens: null, lastAction: `${RECORDED_ACTION}\u0007\u001b[31m`, filesTouched: 2,
+      tokens: null, lastAction: `${RECORDED_ACTION}\u0007\u001b[31m`, filesTouched: 2, logTail: '',
     });
     const body = writes.at(-1) ?? '';
     for (const line of body.split('\n')) {
