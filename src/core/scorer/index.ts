@@ -39,13 +39,18 @@ export function rankAgents(agents: AgentResult[]): AgentResult[] {
 }
 
 /**
- * Everything that can be judged from one worktree alone. `diff` needs every agent's
- * numbers, and `ci` and `judge` come later, so all three are left n/a for finalizeScores.
+ * Everything that can be judged from one worktree. `diff` needs every agent's numbers and
+ * so is left to finalizeScores; `ci` is polled by the race once the PR exists and handed
+ * back here; `judge` waits for Task 36.
  *
  * Order matters: tamper and the diff stats read the agent's commits before the visible-test
  * restore and the hidden-test copy put the scorer's own files into the worktree.
  */
-export async function scoreAgent(ctx: ScoreCtx, baselineGreen: boolean | null = null): Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved'>> {
+export async function scoreAgent(
+  ctx: ScoreCtx,
+  baselineGreen: boolean | null = null,
+  ci: ScoreComponent | null = null,
+): Promise<Pick<AgentResult, 'score' | 'filesTouched' | 'linesAdded' | 'linesRemoved'>> {
   const cfg: Config = ctx.config;
   const testPaths = cfg.test_paths ?? (await defaultTestPaths(ctx.worktree, ctx.baseSha));
   const stats = await diffStats(ctx.worktree, ctx.baseSha);
@@ -74,7 +79,7 @@ export async function scoreAgent(ctx: ScoreCtx, baselineGreen: boolean | null = 
     hidden,
     typecheck,
     lint,
-    { id: 'ci', max: 10, awarded: null, detail: 'n/a' },
+    ci ?? { id: 'ci', max: 10, awarded: null, detail: 'n/a' },
     { id: 'diff', max: 10, awarded: null, detail: '' },
     { id: 'judge', max: 15, awarded: null, detail: 'n/a' },
   ];

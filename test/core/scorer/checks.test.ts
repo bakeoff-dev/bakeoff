@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { computeBaseline, defaultTestPaths, restoreTestPaths, runCheck } from '../../../src/core/scorer/checks';
+import { computeBaseline, defaultTestPaths, restoreTestPaths, runCheck, testPathsFrom } from '../../../src/core/scorer/checks';
+import { isTestFile } from '../../../src/core/scorer/tamper';
 import { makeRepo } from '../../helpers/repo';
 
 describe('runCheck', () => {
@@ -23,6 +24,24 @@ describe('defaultTestPaths', () => {
       'node_modules/pkg/index.test.js': 'd',
     });
     expect(await defaultTestPaths(repo.dir, repo.sha)).toEqual(['test', 'src/util.spec.ts']);
+  });
+
+  it('finds Go tests that live beside the code', async () => {
+    const repo = await makeRepo({ 'main.go': 'package main', 'pkg/thing.go': 'x', 'pkg/thing_test.go': 'y' });
+    expect(await defaultTestPaths(repo.dir, repo.sha)).toEqual(['pkg/thing_test.go']);
+  });
+
+  it('finds Python tests that live beside the code', async () => {
+    const repo = await makeRepo({ 'app/views.py': 'x', 'app/test_views.py': 'y', 'app/models_test.py': 'z' });
+    expect(await defaultTestPaths(repo.dir, repo.sha)).toEqual(['app/models_test.py', 'app/test_views.py']);
+  });
+
+  // Loose files only; anything under test/, tests/, __tests__/ or spec/ is kept as its directory.
+  it('calls a file beside the code a test path exactly when the tamper rule does', () => {
+    for (const f of ['pkg/a_test.go', 'app/test_x.py', 'app/x_test.py', 'src/a.test.ts', 'src/a.spec.tsx', 'src/a.test.mts', 'src/a.spec.rb'])
+      expect(testPathsFrom([f])).toEqual(isTestFile(f, []) ? [f] : []);
+    for (const f of ['src/app.ts', 'app/views.py', 'pkg/thing.go', 'testing.go'])
+      expect(testPathsFrom([f])).toEqual([]);
   });
 
   // Detection reads the base tree: an agent that deletes the suite must not also delete

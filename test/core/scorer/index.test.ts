@@ -130,6 +130,25 @@ describe('scoreAgent', () => {
     expect(by('hidden_tests')).toMatchObject({ max: 20, awarded: 20 });
   });
 
+  it('splices in the CI component the race polled for it', async () => {
+    const repo = await makeRepo({ 'src/x.ts': '1\n' });
+    await repo.commit({ 'src/x.ts': '2\n' }, 'agent work');
+    const ci: ScoreComponent = { id: 'ci', max: 10, awarded: 10, detail: '3/3 checks passed' };
+    const s = await scoreAgent(ctx(repo, { test: 'true' }), null, ci);
+    expect(s.score!.components.find((c) => c.id === 'ci')).toEqual(ci);
+    expect(s.score!.total).toBe(60);
+    expect(s.score!.maxPossible).toBe(60);
+  });
+
+  // Go and Python keep tests beside the code. If those are not restored, an agent can
+  // simply edit the expected value and collect the visible-test points.
+  it('restores tests that live beside the code before running them', async () => {
+    const repo = await makeRepo({ 'pkg/calc.py': 'echo 41', 'pkg/calc_test.py': 'test "$(sh pkg/calc.py)" = 42' });
+    await repo.commit({ 'pkg/calc_test.py': 'test "$(sh pkg/calc.py)" = 41' }, 'agent work');
+    const s = await scoreAgent(ctx(repo, { test: 'sh pkg/calc_test.py' }));
+    expect(s.score!.components.find((c) => c.id === 'visible_tests')!.awarded).toBe(0);
+  });
+
   it('notes a red baseline on the visible-tests component', async () => {
     const repo = await makeRepo({ 'src/x.ts': '1\n' });
     await repo.commit({ 'src/x.ts': '2\n' }, 'agent work');
