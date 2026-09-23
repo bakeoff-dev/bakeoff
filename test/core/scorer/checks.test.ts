@@ -15,19 +15,24 @@ describe('runCheck', () => {
 });
 
 describe('defaultTestPaths', () => {
-  it('finds test directories and stray test files, skipping node_modules', async () => {
+  it('finds test directories and stray test files, skipping vendored code', async () => {
     const repo = await makeRepo({
       'test/a.test.ts': 'a',
       'src/util.spec.ts': 'b',
       'src/plain.ts': 'c',
       'node_modules/pkg/index.test.js': 'd',
     });
-    const paths = defaultTestPaths(repo.dir);
-    expect(paths).toContain('test');
-    expect(paths).toContain('src/util.spec.ts');
-    expect(paths).not.toContain('src/plain.ts');
-    expect(paths).not.toContain('test/a.test.ts'); // already covered by the `test` dir
-    expect(paths.some((p) => p.startsWith('node_modules/'))).toBe(false);
+    expect(await defaultTestPaths(repo.dir, repo.sha)).toEqual(['test', 'src/util.spec.ts']);
+  });
+
+  // Detection reads the base tree: an agent that deletes the suite must not also delete
+  // the scorer's knowledge that there was one.
+  it('sees test paths the agent deleted', async () => {
+    const repo = await makeRepo({ 'test/a.test.ts': 'a', 'src/util.spec.ts': 'b' });
+    rmSync(join(repo.dir, 'test'), { recursive: true });
+    rmSync(join(repo.dir, 'src/util.spec.ts'));
+    await repo.commit({}, 'drop the tests');
+    expect(await defaultTestPaths(repo.dir, repo.sha)).toEqual(['test', 'src/util.spec.ts']);
   });
 });
 
@@ -58,5 +63,27 @@ describe('computeBaseline', () => {
       config: { test: 'test -f a.txt', lint: 'exit 1' },
     });
     expect(b).toEqual({ testsGreen: true, lintGreen: false, typecheckGreen: null });
+  });
+
+  it('runs setup in the baseline worktree before the checks', async () => {
+    const repo = await makeRepo({ 'a.txt': 'a' });
+    const b = await computeBaseline({
+      repoRoot: repo.dir,
+      baseSha: repo.sha,
+      runId: 'base-setup',
+      config: { setup: 'touch installed', test: 'test -f installed' },
+    });
+    expect(b).toEqual({ testsGreen: true, lintGreen: null, typecheckGreen: null });
+  });
+
+  it('fails every check when setup fails, and says why', async () => {
+    const repo = await makeRepo({ 'a.txt': 'a' });
+    const b = await computeBaseline({
+      repoRoot: repo.dir,
+      baseSha: repo.sha,
+      runId: 'base-setup-red',
+      config: { setup: 'exit 3', test: 'true', typecheck: 'true' },
+    });
+    expect(b).toEqual({ testsGreen: false, lintGreen: false, typecheckGreen: false, setupError: 'setup failed (exit 3)' });
   });
 });

@@ -6,18 +6,41 @@ import { restoreTestPaths, runCheck } from './checks';
 
 export interface TestCounts { passed: number; total: number }
 
-/** Best-effort per-test counts for the receipts row only. Never used for points. */
-export function parseTestCounts(out: string): TestCounts | null {
-  let m = /Tests\s+(?:(\d+) failed \|\s*)?(\d+) passed \((\d+)\)/.exec(out); // vitest / jest
-  if (m) return { passed: Number(m[2]), total: Number(m[3]) };
+/** Mirrors the CSI matcher in src/core/text.ts; runners colorize their summary lines. */
+const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
+const GO_OK = /^ok\s+\S+\s+(?:[\d.]+m?s|\(cached\))/gm;
+const GO_FAIL = /^FAIL\s+\S+/gm;
+
+function match(out: string): TestCounts | null {
+  let m = /Tests\s+([^\n]*?)\((\d+)\)/.exec(out); // vitest, incl. "2 failed | 7 passed (9)"
+  if (m) {
+    const passed = /(\d+) passed/.exec(m[1] ?? '');
+    if (passed) return { passed: Number(passed[1]), total: Number(m[2]) };
+  }
+  m = /Tests:\s+[^\n]*?(\d+) passed[^\n]*?(\d+) total/.exec(out); // jest
+  if (m) return { passed: Number(m[1]), total: Number(m[2]) };
   m = /(\d+) pass\s*\n\s*(\d+) fail/.exec(out); // bun test
   if (m) return { passed: Number(m[1]), total: Number(m[1]) + Number(m[2]) };
   m = /=+ (?:(\d+) passed)?(?:, )?(?:(\d+) failed)?.* in [\d.]+s =+/.exec(out); // pytest
   if (m && (m[1] || m[2])) return { passed: Number(m[1] ?? 0), total: Number(m[1] ?? 0) + Number(m[2] ?? 0) };
-  const ok = (out.match(/^ok\s+\S+/gm) ?? []).length; // go test: one line per package
-  const failed = (out.match(/^FAIL\s+\S+/gm) ?? []).length;
+  const ok = (out.match(GO_OK) ?? []).length; // go test: one line per package, with a duration
+  const failed = (out.match(GO_FAIL) ?? []).length;
   if (ok + failed > 0) return { passed: ok, total: ok + failed };
   return null;
+}
+
+/**
+ * Best-effort per-test counts for the receipts row only. Never used for points.
+ *
+ * A red run that parses as a clean sweep means the parse missed the failures -- TAP's
+ * "ok 1 - name" lines read as passing Go packages, for one -- so it is dropped rather
+ * than printed as "9/9 passed" next to a failing component.
+ */
+export function parseTestCounts(out: string, green = true): TestCounts | null {
+  const counts = match(out.replace(ANSI, ''));
+  if (!counts) return null;
+  if (!green && counts.passed === counts.total) return null;
+  return counts;
 }
 
 function countDetail(counts: TestCounts | null, green: boolean, exitCode: number | null): string {
@@ -39,7 +62,7 @@ export async function visibleTestsComponent(o: VisibleTestsInput): Promise<Score
   if (!o.config.test) return { id: 'visible_tests', max, awarded: null, detail: 'n/a' };
   await restoreTestPaths(o.worktree, o.baseSha, o.testPaths);
   const r = await runCheck(o.config.test, o.worktree);
-  const parts = [countDetail(parseTestCounts(r.output), r.green, r.exitCode)];
+  const parts = [countDetail(parseTestCounts(r.output, r.green), r.green, r.exitCode)];
   if (o.baselineGreen === false) parts.push('baseline red');
   return { id: 'visible_tests', max, awarded: r.green ? max : 0, detail: parts.join(', ') };
 }
@@ -59,5 +82,5 @@ export async function hiddenTestsComponent(o: HiddenTestsInput): Promise<ScoreCo
   mkdirSync(dest, { recursive: true });
   cpSync(o.hiddenDir, dest, { recursive: true });
   const r = await runCheck(o.hidden.command, o.worktree);
-  return { id: 'hidden_tests', max, awarded: r.green ? max : 0, detail: countDetail(parseTestCounts(r.output), r.green, r.exitCode) };
+  return { id: 'hidden_tests', max, awarded: r.green ? max : 0, detail: countDetail(parseTestCounts(r.output, r.green), r.green, r.exitCode) };
 }

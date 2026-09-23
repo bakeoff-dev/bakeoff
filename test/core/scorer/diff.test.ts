@@ -5,18 +5,27 @@ import { diffDiscipline, diffStats } from '../../../src/core/scorer/diff';
 import { makeRepo } from '../../helpers/repo';
 
 describe('diffStats', () => {
-  it('counts committed, uncommitted and untracked changes vs base', async () => {
+  it('counts every commit on the branch against base', async () => {
     const repo = await makeRepo({ 'a.ts': 'one\ntwo\n', 'b.ts': 'x\n' });
-    await repo.commit({ 'a.ts': 'one\ntwo\nthree\n' }, 'add line');
+    await repo.commit({ 'a.ts': 'one\ntwo\nthree\n', 'c.ts': 'new\nfile\n' }, 'work');
     rmSync(join(repo.dir, 'b.ts'));
-    writeFileSync(join(repo.dir, 'c.ts'), 'new\nfile\n');
+    await repo.commit({}, 'drop b');
     const s = await diffStats(repo.dir, repo.sha);
     expect(s.files.sort()).toEqual(['a.ts', 'b.ts', 'c.ts']);
     expect(s.added).toBe(3);
     expect(s.removed).toBe(1);
   });
 
-  it('reports nothing for an untouched worktree', async () => {
+  // Bakeoff commits leftovers before scoring, so HEAD is the agent's work. Anything still
+  // loose in the worktree -- restored test files, copied hidden tests -- is the scorer's own.
+  it('ignores the working tree', async () => {
+    const repo = await makeRepo({ 'a.ts': 'one\n' });
+    writeFileSync(join(repo.dir, 'a.ts'), 'one\ntwo\n');
+    writeFileSync(join(repo.dir, 'scratch.ts'), 'untracked\n');
+    expect(await diffStats(repo.dir, repo.sha)).toEqual({ files: [], added: 0, removed: 0 });
+  });
+
+  it('reports nothing for a branch with no commits', async () => {
     const repo = await makeRepo({ 'a.ts': 'one\n' });
     expect(await diffStats(repo.dir, repo.sha)).toEqual({ files: [], added: 0, removed: 0 });
   });
