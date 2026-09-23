@@ -1,7 +1,6 @@
-import { existsSync, readdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { rmSync } from 'node:fs';
 import type { Baseline } from '@contract';
-import { exec, type Exec } from '../exec';
+import { exec, must, type Exec } from '../exec';
 import { runProcess } from '../process';
 import { createWorktree, removeWorktree, worktreeDir } from '../worktree';
 
@@ -26,33 +25,22 @@ export async function runCheck(cmd: string, cwd: string, timeoutMs = 10 * 60_000
 
 const TEST_DIRS = ['test', 'tests', '__tests__', 'spec'];
 const TEST_FILE = /\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb)$/;
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'vendor', 'target']);
+const VENDORED = /(^|\/)(node_modules|dist|build|vendor|target)\//;
 
-/**
- * Walks the worktree for test files. Deliberately `node:fs` rather than `Bun.Glob`:
- * the suite runs under Node via vitest, where the `Bun` global does not exist.
- */
-function walkTestFiles(worktree: string, rel: string, out: string[]): void {
-  let entries;
-  try {
-    entries = readdirSync(rel ? join(worktree, rel) : worktree, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const e of entries) {
-    if (e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue;
-    const p = rel ? `${rel}/${e.name}` : e.name;
-    if (e.isDirectory()) walkTestFiles(worktree, p, out);
-    else if (e.isFile() && TEST_FILE.test(e.name)) out.push(p);
-  }
+export function testPathsFrom(files: string[]): string[] {
+  const tracked = files.filter((f) => !VENDORED.test(f));
+  const dirs = TEST_DIRS.filter((d) => tracked.some((f) => f.startsWith(`${d}/`)));
+  const loose = tracked.filter((f) => TEST_FILE.test(f) && !dirs.some((d) => f.startsWith(`${d}/`)));
+  return [...dirs, ...loose.sort()];
 }
 
-export function defaultTestPaths(worktree: string): string[] {
-  const dirs = TEST_DIRS.filter((d) => existsSync(join(worktree, d)));
-  const files: string[] = [];
-  walkTestFiles(worktree, '', files);
-  const loose = files.filter((f) => !dirs.some((d) => f.startsWith(`${d}/`)));
-  return [...dirs, ...loose.sort()];
+/**
+ * Test paths as they were at base, read from the tree rather than the worktree: an agent
+ * that deletes the suite would otherwise leave nothing to restore and nothing to protect.
+ */
+export async function defaultTestPaths(worktree: string, baseSha: string, run: Exec = exec): Promise<string[]> {
+  const out = await must('git', ['ls-tree', '-r', '--name-only', '-z', baseSha], { cwd: worktree }, run);
+  return testPathsFrom(out.split('\0').filter(Boolean));
 }
 
 /** `git checkout <base> -- <path>` per path, skipping paths that did not exist at base. */
