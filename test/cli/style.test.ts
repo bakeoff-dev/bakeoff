@@ -99,3 +99,23 @@ describe('displayWidth and truncate', () => {
     delete process.env.FORCE_COLOR;
   });
 });
+
+describe('fmtTok counts every token the run paid for', () => {
+  it('includes cache reads and cache writes, not just input and output', () => {
+    // Recorded from run 20260923-mosj: Claude sends almost everything through the
+    // cache, so input + output alone rendered "0k tok" for the entire race.
+    const recorded = { input: 28, output: 6043, cacheRead: 468_158, cacheWrite: 26_566 };
+    expect(fmtTok(recorded)).toBe('501k tok');
+    expect(fmtTok(recorded)).not.toBe('0k tok');
+  });
+
+  it('still reads sensibly when nothing is cached', () => {
+    expect(fmtTok({ input: 181_000, output: 9400, cacheRead: 0, cacheWrite: 0 })).toBe('190k tok');
+    expect(fmtTok({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })).toBe('0k tok');
+    expect(fmtTok(null)).toBe('— tok');
+  });
+
+  it('does not round a real cache-heavy turn down to zero', () => {
+    expect(fmtTok({ input: 2, output: 1, cacheRead: 12_117, cacheWrite: 19_967 })).toBe('32k tok');
+  });
+});

@@ -178,3 +178,77 @@ describe('progressRenderer on resize', () => {
     delete process.env.NO_COLOR;
   });
 });
+
+describe('progressRenderer with hostile action text', () => {
+  // Verbatim from the recorded Warp session (20260923, 120 cols): Claude ran a heredoc
+  // commit message, so the tool argument the driver copied carried a real newline.
+  const RECORDED_ACTION =
+    'Bash git add list.ts list.test.ts && git commit -q -m "$(cat <<\'EOF\'\r\nAdd list command with';
+
+  const started3: RaceEvent = {
+    type: 'race.started', at: 'x', runId: '20260923-mosj',
+    issue: { number: 3, title: 'Add a --reverse flag to the list command', url: 'u' },
+    repo: { owner: 'bakeoff-dev', name: 'scratch', defaultBranch: 'main', baseSha: 'a' },
+    agents: ['claude'], caps: { budgetUsd: 3, timeoutMs: 1, maxTurns: null },
+    baseline: { testsGreen: null, lintGreen: null, typecheckGreen: null },
+  };
+
+  const frameHeight = (action: string, columns = 120) => {
+    const term = new FakeTerm(columns);
+    const r = progressRenderer(term.stream);
+    r.onEvent(started3);
+    r.onEvent({
+      type: 'agent.progress', at: 'x', driver: 'claude', costUsd: 0.5,
+      tokens: null, lastAction: action, filesTouched: 2,
+    });
+    const height = term.rows.length;
+    r.stop();
+    return height;
+  };
+
+  it('an action with an embedded newline does not make the frame taller', () => {
+    process.env.NO_COLOR = '1';
+    expect(frameHeight(RECORDED_ACTION)).toBe(frameHeight('Bash git add list.ts'));
+    delete process.env.NO_COLOR;
+  });
+
+  it('strands nothing when the recorded action is replayed', () => {
+    process.env.NO_COLOR = '1';
+    const term = new FakeTerm(120);
+    const r = progressRenderer(term.stream);
+    r.onEvent(started3);
+    for (let i = 0; i < 6; i += 1) {
+      r.onEvent({
+        type: 'agent.progress', at: 'x', driver: 'claude', costUsd: 0.5,
+        tokens: null, lastAction: RECORDED_ACTION, filesTouched: 2,
+      });
+    }
+    expect(term.countMatching(/bakeoff-dev\/scratch #3/)).toBe(1);
+    r.stop();
+    expect(term.screen().filter((l) => l.trim() !== '')).toEqual([]);
+    delete process.env.NO_COLOR;
+  });
+
+  it('writes no row containing a control character', () => {
+    process.env.NO_COLOR = '1';
+    const writes: string[] = [];
+    const term = new FakeTerm(120);
+    const stream = {
+      isTTY: true, columns: 120,
+      write: (s: string) => { writes.push(s); term.write(s); return true; },
+    } as unknown as NodeJS.WriteStream;
+    const r = progressRenderer(stream);
+    r.onEvent(started3);
+    r.onEvent({
+      type: 'agent.progress', at: 'x', driver: 'claude', costUsd: 0.5,
+      tokens: null, lastAction: `${RECORDED_ACTION}\u0007\u001b[31m`, filesTouched: 2,
+    });
+    const body = writes.at(-1) ?? '';
+    for (const line of body.split('\n')) {
+      // colour codes are allowed; nothing else non-printable is
+      expect(/[\u0000-\u0008\u000b-\u001a\u001c-\u001f]/.test(line)).toBe(false);
+    }
+    r.stop();
+    delete process.env.NO_COLOR;
+  });
+});

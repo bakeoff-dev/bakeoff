@@ -1,5 +1,5 @@
 {
-  "_comment": "USD per million tokens. Keys are lowercase model-name prefixes. Longest prefix wins. verifiedAt is the date the numbers were checked against the vendor pricing page.",
+  "_comment": "USD per million tokens. Keys are lowercase model-name prefixes. Longest prefix wins. cacheWrite is the 5-minute-TTL rate (1.25x input); cacheWrite1h is the 1-hour-TTL rate (2x input) and falls back to cacheWrite where a vendor has no hourly tier. verifiedAt is the date the numbers were checked against the vendor pricing page.",
   "verifiedAt": "2026-09-03",
   "_sources": {
     "anthropic": "https://www.anthropic.com/pricing#api",
@@ -7,13 +7,13 @@
   },
   "_legacy": "Keys marked legacy below are no longer listed on the vendor pricing page. They are kept so an agent CLI reporting an older model id still meters instead of falling back to cost: null. Their numbers are last-published values, not re-verified.",
   "models": {
-    "claude-fable-5":   { "input": 10,   "output": 50,  "cacheRead": 0.25,  "cacheWrite": 12.5 },
-    "claude-mythos-5":  { "input": 10,   "output": 50,  "cacheRead": 0.25,  "cacheWrite": 12.5 },
-    "claude-opus-5":    { "input": 5,    "output": 25,  "cacheRead": 0.5,   "cacheWrite": 6.25 },
-    "claude-opus-4":    { "input": 5,    "output": 25,  "cacheRead": 0.5,   "cacheWrite": 6.25 },
-    "claude-sonnet-5":  { "input": 2,    "output": 10,  "cacheRead": 0.2,   "cacheWrite": 2.5 },
-    "claude-sonnet-4":  { "input": 3,    "output": 15,  "cacheRead": 0.3,   "cacheWrite": 3.75 },
-    "claude-haiku-4":   { "input": 1,    "output": 5,   "cacheRead": 0.1,   "cacheWrite": 1.25 },
+    "claude-fable-5":   { "input": 10,   "output": 50,  "cacheRead": 0.25,  "cacheWrite": 12.5, "cacheWrite1h": 20 },
+    "claude-mythos-5":  { "input": 10,   "output": 50,  "cacheRead": 0.25,  "cacheWrite": 12.5, "cacheWrite1h": 20 },
+    "claude-opus-5":    { "input": 5,    "output": 25,  "cacheRead": 0.5,   "cacheWrite": 6.25, "cacheWrite1h": 10 },
+    "claude-opus-4":    { "input": 5,    "output": 25,  "cacheRead": 0.5,   "cacheWrite": 6.25, "cacheWrite1h": 10 },
+    "claude-sonnet-5":  { "input": 2,    "output": 10,  "cacheRead": 0.2,   "cacheWrite": 2.5, "cacheWrite1h": 4 },
+    "claude-sonnet-4":  { "input": 3,    "output": 15,  "cacheRead": 0.3,   "cacheWrite": 3.75, "cacheWrite1h": 6 },
+    "claude-haiku-4":   { "input": 1,    "output": 5,   "cacheRead": 0.1,   "cacheWrite": 1.25, "cacheWrite1h": 2 },
     "gpt-5.6-sol":      { "input": 4,    "output": 20,  "cacheRead": 0.4,   "cacheWrite": 5 },
     "gpt-5.6-terra":    { "input": 2,    "output": 12,  "cacheRead": 0.2,   "cacheWrite": 2.5 },
     "gpt-5.6-luna":     { "input": 0.2,  "output": 1.2, "cacheRead": 0.02,  "cacheWrite": 0.25 },

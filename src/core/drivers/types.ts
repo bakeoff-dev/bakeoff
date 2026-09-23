@@ -1,11 +1,11 @@
 import type { AgentStatus, Caps, DriverId, TokenUsage } from '@contract';
-import type { BudgetMeter } from '../budget';
+import type { BudgetMeter, CacheWriteSplit } from '../budget';
 
 export interface DriverDoctor { found: boolean; version: string | null; authOk: boolean; notes: string[] }
 
 export type AgentEvent =
   | { kind: 'action'; text: string }
-  | { kind: 'usage'; tokens: TokenUsage; model: string }
+  | { kind: 'usage'; tokens: TokenUsage; model: string; cacheWrite?: CacheWriteSplit }
   | { kind: 'cost'; costUsd: number }
   | { kind: 'file'; path: string };
 

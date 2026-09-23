@@ -94,8 +94,15 @@ export function fmtClockPadded(ms: number): string {
   const s = Math.round(ms / 1000);
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
+/**
+ * Every token the turn paid for, not just the uncached ones. Claude sends nearly all
+ * of its context through the cache -- a recorded race showed 28 input tokens against
+ * 468k cache reads -- so summing input and output alone renders "0k tok" all race.
+ */
 export function fmtTok(t: TokenUsage | null): string {
-  return t ? `${Math.round((t.input + t.output) / 1000)}k tok` : '— tok';
+  if (!t) return '— tok';
+  const total = t.input + t.cacheRead + t.cacheWrite + t.output;
+  return `${Math.round(total / 1000)}k tok`;
 }
 /** null is "unavailable" and renders as such; it is never coerced to $0.00. */
 export const fmtCost = (n: number | null): string => (n === null ? 'n/a' : `$${n.toFixed(2)}`);

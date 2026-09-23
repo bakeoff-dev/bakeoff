@@ -12,6 +12,7 @@ import { buildPacket, readGuidance } from './packet';
 import { defaultMeter } from './pricing';
 import { commitLeftovers, createPr, ensureLabels, pushBranch } from './publish';
 import { appendEvent, paths, writeRun } from './store';
+import { oneLine } from './text';
 import { createWorktree, removeWorktree, worktreeDir } from './worktree';
 
 export interface RaceInput {
@@ -159,7 +160,8 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     emit({ type: 'agent.started', at: at(), driver: agent.driver, branch: agent.branch });
 
     const onEvent = (e: AgentEvent): void => {
-      if (e.kind === 'action') lastAction = e.text;
+      // Agent text is untrusted: a heredoc commit message arrives with real newlines.
+      if (e.kind === 'action') lastAction = oneLine(e.text);
       if (e.kind === 'file') files.add(e.path);
       if (e.kind === 'usage') tokens = addTokens(tokens, e.tokens);
       const nowMs = Date.now();

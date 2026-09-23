@@ -4,6 +4,7 @@ import {
   dim, displayWidth, fmtClockPadded, fmtCost, fmtTok, paint, spendBar, truncate,
 } from './style';
 import { NAMES } from '../../core/names';
+import { oneLine } from '../../core/text';
 
 const HEADER_WIDTH = 72;
 const ACTION_INDENT = ' '.repeat(28);
@@ -27,7 +28,9 @@ export function progressRenderer(out: NodeJS.WriteStream = process.stdout): Prog
 
   const frame = (): string[] => {
     const lines: string[] = [];
-    const issue = state.issue ? `${state.repo?.owner}/${state.repo?.name} #${state.issue.number}  ${state.issue.title}` : '';
+    const issue = state.issue
+      ? oneLine(`${state.repo?.owner}/${state.repo?.name} #${state.issue.number}  ${state.issue.title}`)
+      : '';
     lines.push(`  ${paint('#F4F4F7', NAMES.bin)}  ${issue}`);
     const running = state.agents.filter((a) => a.status === 'running').length;
     const left = `  ${running} of ${state.agents.length} running`;
@@ -40,7 +43,7 @@ export function progressRenderer(out: NodeJS.WriteStream = process.stdout): Prog
     // bar resolution rather than the numbers to its right.
     const barWidth = Math.max(BAR_MIN, Math.min(BAR_WIDTH, width() - 1 - LANE_CHROME));
     for (const a of state.agents) {
-      const name = DRIVER_NAME[a.driver].padEnd(12);
+      const name = oneLine(DRIVER_NAME[a.driver]).padEnd(12);
       const status = paint(STATUS_HEX[a.status], STATUS_WORD[a.status].padEnd(9));
       const files = `${a.filesTouched} file${a.filesTouched === 1 ? '' : 's'}`;
       const pr = a.prNumber ? `   PR #${a.prNumber}` : '';
@@ -49,7 +52,8 @@ export function progressRenderer(out: NodeJS.WriteStream = process.stdout): Prog
         `  ${paint(DRIVER_HEX[a.driver], '●')} ${name}  ${status} ${fmtCost(a.costUsd).padStart(6)} ${bar} ` +
           `${fmtCost(budget)}   ${fmtTok(a.tokens).padStart(8)}   ${files}${pr}`,
       );
-      const action = (a.lastAction || '').slice(0, Math.max(10, width() - 30));
+      // Sanitised again here: the frame's height must not depend on a driver behaving.
+      const action = oneLine(a.lastAction || '').slice(0, Math.max(10, width() - 30));
       lines.push(action ? `${ACTION_INDENT}${dim(action)}` : '', '');
     }
     // Nothing may wrap: a wrapped line occupies rows the cursor-up below cannot account for.
