@@ -8,7 +8,7 @@
 
 **Tech Stack:** Bun 1.3, TypeScript 5, commander 15, @clack/prompts 1.7, zod, yaml, openskill 5, satori 0.33, @resvg/resvg-js 2.6, Vite 6, React 19, vite-plugin-singlefile 2.3, vitest. UI styling is plain CSS-in-JS style objects copied from the design handoff; no Tailwind.
 
-**Spec:** `SPEC.md` (this repo root). The product spec `docs/planning/pr-arena-v1-spec.md` is background only.
+**Spec:** `SPEC.md` (this repo root).
 
 ## Global Constraints
 
@@ -4722,7 +4722,7 @@ git add -A && git commit -m "feat(ui): ladder screen from the design handoff"
 
 - [ ] **Step 1: Write README.md**
 
-Sections, in order: one-line pitch and the hero GIF; install (`npm i -g bakeoff-cli` then `bakeoff doctor`); quickstart (5 lines: `cd repo`, `bakeoff init`, edit test command, `bakeoff run 123 --agents claude,codex`, look at the scoreboard); how scoring works (the table from SPEC.md section 4, shortened); tamper detection (the five rules); the ladder (one paragraph: OpenSkill, "Elo-style"); config reference (the YAML from SPEC.md section 2); "How is this different from Emdash / Conductor?" (three sentences from the product spec section 2); honest limits (agents can read disk; costs are estimates; CI churn); license.
+Sections, in order: one-line pitch and the hero GIF; install (`npm i -g bakeoff-cli` then `bakeoff doctor`); quickstart (5 lines: `cd repo`, `bakeoff init`, edit test command, `bakeoff run 123 --agents claude,codex`, look at the scoreboard); how scoring works (the table from SPEC.md section 4, shortened); tamper detection (the five rules); the ladder (one paragraph: OpenSkill, "Elo-style"); config reference (the YAML from SPEC.md section 2); "How is this different from Emdash / Conductor?" (three sentences); honest limits (agents can read disk; costs are estimates; CI churn); license.
 
 - [ ] **Step 2: Build and pack check**
 
@@ -5026,15 +5026,6 @@ Diffs come from `git diff <baseSha>` in each kept worktree before removal; `runO
 ```bash
 bun test && bun run typecheck && git add -A && git commit -m "feat(scorer): blind LLM judge, off by default"
 ```
-
----
-
-# Days 10-14 (no code tasks; from the product spec)
-
-- Day 10-11: fork 2-3 popular OSS repos, race 10 real issues with `--agents claude,codex,opencode`, budget ~$60. Collect `.bakeoff/runs/*.json`, write up the numbers. Fix whatever breaks; each fix is a test + commit.
-- Day 12: Show HN 8-11am ET with the scoreboard PNG; X thread.
-- Day 13: Reddit data post.
-- Day 14: merge external PRs, recap.
 
 ---
 
