@@ -1,12 +1,16 @@
 import { applyEvent, initialState, type RaceEvent, type RaceState } from '@contract';
 import {
   DRIVER_HEX, DRIVER_NAME, STATUS_HEX, STATUS_WORD,
-  dim, fmtClockPadded, fmtCost, fmtTok, paint, spendBar,
+  dim, displayWidth, fmtClockPadded, fmtCost, fmtTok, paint, spendBar, truncate,
 } from './style';
 import { NAMES } from '../../core/names';
 
 const HEADER_WIDTH = 72;
 const ACTION_INDENT = ' '.repeat(28);
+const BAR_WIDTH = 20;
+const BAR_MIN = 6;
+/** Everything on an agent lane except the bar itself. */
+const LANE_CHROME = 62;
 
 export interface ProgressRenderer {
   onEvent(e: RaceEvent): void;
@@ -32,12 +36,15 @@ export function progressRenderer(out: NodeJS.WriteStream = process.stdout): Prog
     lines.push(left + ' '.repeat(gap) + right, '');
 
     const budget = state.caps?.budgetUsd ?? 1;
+    // Shrink the bar before resorting to truncation, so a narrow terminal loses
+    // bar resolution rather than the numbers to its right.
+    const barWidth = Math.max(BAR_MIN, Math.min(BAR_WIDTH, width() - 1 - LANE_CHROME));
     for (const a of state.agents) {
       const name = DRIVER_NAME[a.driver].padEnd(12);
       const status = paint(STATUS_HEX[a.status], STATUS_WORD[a.status].padEnd(9));
       const files = `${a.filesTouched} file${a.filesTouched === 1 ? '' : 's'}`;
       const pr = a.prNumber ? `   PR #${a.prNumber}` : '';
-      const bar = spendBar(a.costUsd, budget, 20, DRIVER_HEX[a.driver]);
+      const bar = spendBar(a.costUsd, budget, barWidth, DRIVER_HEX[a.driver]);
       lines.push(
         `  ${paint(DRIVER_HEX[a.driver], '●')} ${name}  ${status} ${fmtCost(a.costUsd).padStart(6)} ${bar} ` +
           `${fmtCost(budget)}   ${fmtTok(a.tokens).padStart(8)}   ${files}${pr}`,
@@ -45,16 +52,33 @@ export function progressRenderer(out: NodeJS.WriteStream = process.stdout): Prog
       const action = (a.lastAction || '').slice(0, Math.max(10, width() - 30));
       lines.push(action ? `${ACTION_INDENT}${dim(action)}` : '', '');
     }
-    return lines;
+    // Nothing may wrap: a wrapped line occupies rows the cursor-up below cannot account for.
+    return lines.map((l) => truncate(l, Math.max(1, width() - 1)));
+  };
+
+  /** Physical rows a frame occupies, which is what the cursor actually moves through. */
+  const rowsFor = (lines: string[]): number =>
+    lines.reduce((n, l) => n + Math.max(1, Math.ceil(displayWidth(l) / width())), 0);
+
+  const clear = (): void => {
+    if (drawn) out.write(`\x1b[${drawn}A\x1b[J`);
+    drawn = 0;
   };
 
   const redraw = (): void => {
     if (!live) return;
     const lines = frame();
-    if (drawn) out.write(`\x1b[${drawn}A\x1b[J`);
+    clear();
     out.write(`${lines.join('\n')}\n`);
-    drawn = lines.length;
+    drawn = rowsFor(lines);
   };
+
+  // A resize re-wraps rows already on screen, so the recorded count no longer describes
+  // them. Forget it and draw fresh below rather than clearing the wrong rows.
+  const onResize = (): void => {
+    drawn = 0;
+  };
+  if (live && typeof out.on === 'function') out.on('resize', onResize);
 
   const timer = live ? setInterval(redraw, 1000) : null;
   // The clock keeps ticking without events; don't hold the process open for it.
@@ -67,10 +91,8 @@ export function progressRenderer(out: NodeJS.WriteStream = process.stdout): Prog
     },
     stop() {
       if (timer) clearInterval(timer);
-      if (live && drawn) {
-        out.write(`\x1b[${drawn}A\x1b[J`);
-        drawn = 0;
-      }
+      if (live && typeof out.off === 'function') out.off('resize', onResize);
+      if (live) clear();
     },
   };
 }

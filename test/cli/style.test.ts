@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { colorEnabled, fmtClock, fmtClockPadded, fmtCost, fmtTok, paint, spendBar } from '../../src/cli/render/style';
+import { colorEnabled, dim, displayWidth, fmtClock, fmtClockPadded, fmtCost, fmtTok, paint, spendBar, truncate } from '../../src/cli/render/style';
 
 describe('style', () => {
   const env = { ...process.env };
@@ -52,5 +52,50 @@ describe('style', () => {
     const emoji = /\p{Extended_Pictographic}/u;
     const strings = [fmtCost(null), fmtTok(null), spendBar(1, 2)];
     for (const s of strings) expect(emoji.test(s)).toBe(false);
+  });
+});
+
+describe('displayWidth and truncate', () => {
+  it('measures visible width, ignoring colour codes', () => {
+    process.env.FORCE_COLOR = '3';
+    expect(displayWidth('abc')).toBe(3);
+    expect(displayWidth(paint('#F59E6B', 'abc'))).toBe(3);
+    expect(displayWidth(dim('abc'))).toBe(3);
+    expect(displayWidth('')).toBe(0);
+    delete process.env.FORCE_COLOR;
+  });
+
+  it('counts the bar and bullet glyphs as one cell each', () => {
+    process.env.NO_COLOR = '1';
+    expect(displayWidth(spendBar(1.5, 3))).toBe(20);
+    expect(displayWidth('●')).toBe(1);
+    delete process.env.NO_COLOR;
+  });
+
+  it('truncates to a visible budget', () => {
+    expect(truncate('abcdef', 3)).toBe('abc');
+    expect(truncate('abc', 10)).toBe('abc');
+    expect(truncate('abcdef', 0)).toBe('');
+  });
+
+  it('keeps colour codes while truncating, and resets at the cut', () => {
+    process.env.FORCE_COLOR = '3';
+    const painted = `${paint('#F59E6B', 'abcdef')}tail`;
+    const cut = truncate(painted, 3);
+    expect(displayWidth(cut)).toBe(3);
+    expect(cut).toContain('\x1b[38;2;245;158;107m');
+    // an interrupted colour must not bleed into the rest of the terminal
+    expect(cut.endsWith('\x1b[0m')).toBe(true);
+    delete process.env.FORCE_COLOR;
+  });
+
+  it('never splits an escape sequence', () => {
+    process.env.FORCE_COLOR = '3';
+    for (let n = 0; n <= 12; n += 1) {
+      const cut = truncate(`${paint('#F59E6B', 'abcdef')}ghijkl`, n);
+      expect(displayWidth(cut)).toBe(Math.min(n, 12));
+      expect(/\x1b\[[0-9;]*$/.test(cut)).toBe(false);
+    }
+    delete process.env.FORCE_COLOR;
   });
 });

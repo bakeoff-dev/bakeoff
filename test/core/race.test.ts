@@ -21,6 +21,7 @@ function fakeDriver(id: 'claude' | 'codex', behaviour: 'ok' | 'crash' | 'throw')
     launch: async (i) => {
       i.onEvent({ kind: 'action', text: 'Edit a.txt' });
       i.onEvent({ kind: 'usage', tokens: TOKENS, model: 'gpt-5' });
+      i.onEvent({ kind: 'usage', tokens: TOKENS, model: 'gpt-5' });
       if (behaviour === 'throw') throw new Error('driver exploded');
       if (behaviour === 'ok') {
         i.onEvent({ kind: 'file', path: 'a.txt' });
@@ -136,6 +137,22 @@ describe('runRace', () => {
     expect(started).toBeDefined();
     const exited = events.find((e) => e.type === 'agent.exited' && e.driver === 'codex');
     expect(exited?.type === 'agent.exited' && exited.status).toBe('crashed');
+  });
+
+  it('reports running token totals on agent.progress', async () => {
+    const { repo, rec } = await setup({ claude: 'ok', codex: 'crash' });
+    const progress = readEvents(repo.dir, rec.id).filter(
+      (e) => e.type === 'agent.progress' && e.driver === 'claude',
+    );
+    expect(progress.length).toBeGreaterThan(0);
+    const withTokens = progress.filter((e) => e.type === 'agent.progress' && e.tokens !== null);
+    // the driver emitted usage; the live view must not show "- tok" for the whole race
+    expect(withTokens.length).toBeGreaterThan(0);
+    const last = withTokens.at(-1);
+    // two usage events of the same size accumulate
+    expect(last?.type === 'agent.progress' && last.tokens).toEqual({
+      input: TOKENS.input * 2, output: TOKENS.output * 2, cacheRead: 0, cacheWrite: 0,
+    });
   });
 
   it('survives a driver that throws, recording it as crashed', async () => {

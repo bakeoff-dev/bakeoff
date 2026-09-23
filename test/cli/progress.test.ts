@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RaceEvent } from '@contract';
 import { progressRenderer } from '../../src/cli/render/progress';
+import { FakeTerm } from '../helpers/term';
 
 function fakeOut(isTTY: boolean) {
   const chunks: string[] = [];
@@ -76,6 +77,103 @@ describe('progressRenderer', () => {
     const frame = chunks.at(-1) ?? '';
     expect(frame).toContain('Edit src/paginate.ts');
     expect(frame).toContain('3 files');
+    r.stop();
+    delete process.env.NO_COLOR;
+  });
+});
+
+describe('progressRenderer redraw under a wrapping terminal', () => {
+  const started2: RaceEvent = {
+    type: 'race.started',
+    at: '2026-09-23T00:00:00.000Z',
+    runId: '20260923-9c2b',
+    issue: { number: 3, title: 'Add a --reverse flag to the list command', url: 'https://github.com/bakeoff-dev/scratch/issues/3' },
+    repo: { owner: 'bakeoff-dev', name: 'scratch', defaultBranch: 'main', baseSha: 'abc' },
+    agents: ['claude'],
+    caps: { budgetUsd: 3, timeoutMs: 300_000, maxTurns: null },
+    baseline: { testsGreen: null, lintGreen: null, typecheckGreen: null },
+  };
+
+  const drive = (term: FakeTerm, frames: number) => {
+    const r = progressRenderer(term.stream);
+    r.onEvent(started2);
+    for (let i = 0; i < frames; i += 1) {
+      r.onEvent({
+        type: 'agent.progress', at: 'x', driver: 'claude', costUsd: 0.53,
+        tokens: { input: 20, output: 2605, cacheRead: 300_308, cacheWrite: 23_783 },
+        lastAction: 'Bash /opt/homebrew/bin/bun test', filesTouched: 0,
+      });
+    }
+    return r;
+  };
+
+  it('replaces the frame rather than accumulating, at any terminal width', () => {
+    process.env.NO_COLOR = '1';
+    const bad: string[] = [];
+    for (let columns = 20; columns <= 200; columns += 1) {
+      const one = new FakeTerm(columns);
+      drive(one, 1);
+      const many = new FakeTerm(columns);
+      drive(many, 8);
+      // eight redraws must occupy exactly the same rows as one
+      if (many.rows.length !== one.rows.length) {
+        bad.push(`columns=${columns}: 1 frame=${one.rows.length} rows, 8 frames=${many.rows.length} rows`);
+      }
+      const headers = many.countMatching(/bakeoff-dev\/scratch #3/);
+      if (headers > 1) bad.push(`columns=${columns}: ${headers} stale headers`);
+    }
+    expect(bad).toEqual([]);
+    delete process.env.NO_COLOR;
+  });
+
+  it('wraps nothing: every emitted line fits the terminal', () => {
+    process.env.NO_COLOR = '1';
+    for (const columns of [20, 30, 40, 60, 76, 80, 81, 82, 100, 200]) {
+      const emitted: string[] = [];
+      const term = new FakeTerm(columns);
+      const stream = {
+        isTTY: true, columns,
+        write: (s: string) => { emitted.push(s); term.write(s); return true; },
+      } as unknown as NodeJS.WriteStream;
+      const r = progressRenderer(stream);
+      r.onEvent(started2);
+      const body = emitted.at(-1) ?? '';
+      for (const line of body.split('\n')) {
+        expect(FakeTerm.width(line), `columns=${columns} line=${JSON.stringify(line)}`).toBeLessThan(columns);
+      }
+      r.stop();
+    }
+    delete process.env.NO_COLOR;
+  });
+
+  it('leaves a clean screen after stop()', () => {
+    process.env.NO_COLOR = '1';
+    const term = new FakeTerm(76);
+    const r = drive(term, 5);
+    r.stop();
+    expect(term.screen().filter((l) => l.trim() !== '')).toEqual([]);
+    delete process.env.NO_COLOR;
+  });
+});
+
+describe('progressRenderer on resize', () => {
+  it('does not clear rows it can no longer account for', () => {
+    process.env.NO_COLOR = '1';
+    const handlers: Record<string, () => void> = {};
+    const writes: string[] = [];
+    const out = {
+      isTTY: true, columns: 100,
+      write: (s: string) => { writes.push(s); return true; },
+      on: (ev: string, fn: () => void) => { handlers[ev] = fn; },
+      off: () => {},
+    } as unknown as NodeJS.WriteStream;
+    const r = progressRenderer(out);
+    r.onEvent(started);
+    writes.length = 0;
+    handlers.resize?.();
+    r.onEvent({ type: 'agent.started', at: 'x', driver: 'claude', branch: 'b' });
+    // no cursor-up: the rows on screen re-wrapped and their count is unknown
+    expect(writes.some((w) => /\x1b\[\d+A/.test(w))).toBe(false);
     r.stop();
     delete process.env.NO_COLOR;
   });
