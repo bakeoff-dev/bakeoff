@@ -302,9 +302,9 @@ Spawned detached (own process group). On timeout, budget trip, or abort: `kill(-
 
 ## 10. CLI, UI, outputs
 
-Commands (v1): `run`, `doctor`, `init`, `share <id>`, `ladder`. Should-ship: `replay <id>`, `merge <id>`.
+Commands (v1): `run`, `doctor`, `init`, `share <id>`, `ladder`, `export <id>`. Cut from v1: `replay <id>`, `merge <id>`.
 
-`run --watch` starts `Bun.serve` on 4141: `GET /` serves `dist/ui.html` with `{mode:'live'}` injected, `GET /events` is SSE replaying `events.jsonl` then tailing it, `POST /abort/:driver` aborts one agent. Opens the browser.
+`run --watch` starts a `node:http` server on 127.0.0.1, on the first free port from 4141, guarded by a per-run token that the opened URL carries: `GET /` serves `dist/ui.html` with `{mode:'live'}` injected, `GET /events` is SSE replaying `events.jsonl` then tailing it, `GET /ladder.json` returns the ladder, and `POST /abort/:driver` aborts one agent. Every endpoint but `/` rejects a missing or wrong token. Opens the browser.
 
 Static export: `dist/ui.html` with `<script type="application/json" id="bakeoff-data">` containing `{mode:'static', events}` injected before `</head>`. Written to `.bakeoff/runs/<id>.html`.
 

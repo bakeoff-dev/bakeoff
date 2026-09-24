@@ -4,7 +4,7 @@
 
 **Race coding agents on your real issues. Merge the winner.**
 
-<!-- hero GIF coming: docs/hero.gif, recorded from the live race view once the race screen is final -->
+![A live race: Claude Code, Codex and Cursor work the same issue in parallel, then the scoreboard ranks their pull requests](docs/hero.gif)
 
 Pick an open issue in your repository. Bakeoff gives the same task packet to every agent
 you name, runs each one in its own git worktree under the same budget and the same wall
@@ -211,6 +211,44 @@ judge:                              # optional LLM judge, off by default
 A run leaves behind `.bakeoff/runs/<id>.json` (the full record), `.events.jsonl` (the race
 log, replayable) and `.bakeoff/logs/<id>/<driver>.log` (the full agent session, gitignored
 along with `.bakeoff/hidden/`).
+
+## Results: 10 real issues
+
+Four agents raced 10 bugs from three open-source projects: es-toolkit (4), more-itertools
+(3) and tomlkit (3), each fixed upstream between June and September 2026. Every race
+started from the commit just before the real fix. The hidden test was the fix's own test,
+trimmed to what the issue actually states.
+
+| Agent | Model | Issues solved (hidden test) | Avg score | Est. cost, 10 races | Avg time |
+|---|---|---|---|---|---|
+| Claude Code | `claude-opus-5` | 10 / 10 | 65.5 / 70 | $16.46 | 5.4 min |
+| Gemini CLI | `gemini-3.5-flash` | 10 / 10 | 64.7 / 70 | $4.93 | 4.5 min |
+| Cursor | `composer-2.5` | 9 / 10 | 60.9 / 70 | n/a | 2.4 min |
+| Codex | `gpt-6-luna` | 8 / 10 | 54.0 / 70 | $0.06 | 1.1 min |
+
+- Claude Code and Gemini CLI solved every issue. Gemini did it for under a third of the cost.
+- Codex was the fastest and cheapest, but missed two issues and broke existing tests in two others.
+- Cursor solved nine, in about half the time of Claude Code and Gemini CLI.
+- The top of a race was often a tie, and ties go to the cheaper agent. So Gemini CLI (5) and
+  Codex (4) took most first places, and Claude Code one. Cursor reports no cost, so it loses
+  every tie.
+
+How the races were kept fair:
+
+- Every agent got the same task text, a $3 budget, a 20-minute limit, and full command access.
+- Each issue was copied to a fork without fix hints, upstream links or comments, and each race
+  ran in a fresh clone whose history stops before the fix.
+- An audit of every agent's log found no lookups of the upstream issue, the fix commit, or git
+  history past the base.
+- One race was rerun, because a workflow on the fork pushed commits onto the agents' branches.
+  No race was rerun for its result.
+
+Read these as a sample, not a leaderboard. Ten mostly small bug fixes is not much data. CI
+added noise: in two more-itertools races some agents lost 10 points to a check still pending
+at the 10-minute CI timeout, and single Windows jobs failed on several tomlkit PRs. Dollar
+figures are client-side estimates. Codex ran on a ChatGPT login and is priced at API list
+rates, and Cursor bills a subscription and reports no cost. The point of Bakeoff is to run
+this on your own repository.
 
 ## How is this different from Emdash or Conductor?
 
