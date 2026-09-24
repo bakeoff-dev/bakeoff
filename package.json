@@ -23,7 +23,7 @@
   ],
   "type": "module",
   "bin": {
-    "bakeoff": "./dist/cli.js"
+    "bakeoff": "dist/cli.js"
   },
   "files": [
     "dist",
