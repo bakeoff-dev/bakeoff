@@ -39,6 +39,31 @@ function toolTarget(input: unknown): string {
   return str(o.path) || str(o.file_path) || str(o.command) || str(o.pattern) || '';
 }
 
+/*
+ * cursor-agent keys each call by its kind: `{"tool_call":{"editToolCall":{"args":{...}}}}`.
+ * Arg names are from a real 2026.09.18 log (test/fixtures/drivers/cursor/tool-calls.jsonl).
+ */
+const TOOL_KINDS: Record<string, { name: string; target: (a: Record<string, unknown>) => string }> = {
+  editToolCall: { name: 'Edit', target: (a) => str(a.path) },
+  readToolCall: { name: 'Read', target: (a) => str(a.path) },
+  grepToolCall: { name: 'Grep', target: (a) => str(a.pattern) },
+  globToolCall: { name: 'Glob', target: (a) => str(a.globPattern) || str(a.pattern) || str(a.glob) },
+  shellToolCall: { name: 'Bash', target: (a) => str(a.command) },
+};
+
+function keyedToolCall(call: Record<string, unknown>): AgentEvent[] | null {
+  const kind = Object.keys(call).find((k) => k.endsWith('ToolCall'));
+  if (!kind) return null;
+  const args = obj(obj(call[kind]).args);
+  const known = TOOL_KINDS[kind];
+  const target = known ? known.target(args) : toolTarget(args);
+  const events: AgentEvent[] = [
+    { kind: 'action', text: actionLabel(known?.name ?? kind.slice(0, -'ToolCall'.length), target) },
+  ];
+  if (kind === 'editToolCall' && target) events.push({ kind: 'file', path: target });
+  return events;
+}
+
 export interface ParsedCursorLine { events: AgentEvent[]; result: CursorResult | null; model?: string }
 
 export function parseCursorLine(line: string, model: string | null): ParsedCursorLine {
@@ -53,6 +78,8 @@ export function parseCursorLine(line: string, model: string | null): ParsedCurso
   }
 
   if (type === 'tool_call') {
+    const keyed = keyedToolCall(obj(o.tool_call));
+    if (keyed) return { events: keyed, result: null };
     const name = str(o.tool_name) || str(obj(o.tool).name) || 'tool';
     const target = toolTarget(o.input ?? o.parameters ?? obj(o.tool).input);
     events.push({ kind: 'action', text: actionLabel(name, target) });
