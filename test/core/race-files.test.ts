@@ -106,6 +106,19 @@ describe('live files count', () => {
     expect(counts).toEqual([1, 2]);
   });
 
+  it('does not charge the agent with untracked files left by setup', async () => {
+    const counts = progressFiles(
+      await race(
+        async (wt) => {
+          writeFileSync(join(wt, 'a.txt'), 'fixed');
+          await settle();
+        },
+        { setup: 'mkdir -p build && echo x > build/out.js && echo y > setup.log' },
+      ),
+    );
+    expect(counts).toEqual([1]);
+  });
+
   it('stops polling once the agent exits, even when the driver throws', async () => {
     const events = await race(shellWrites, { end: 'throw' });
     expect(progressFiles(events)).toContain(2);

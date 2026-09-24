@@ -21,7 +21,7 @@ import { finalizeScores, scoreAgent as realScoreAgent } from './scorer';
 import { updateLadder } from './ladder';
 import { readLadder, writeLadder } from './store';
 import { runProcess } from './process';
-import { FILES_POLL_MS, watchChangedPaths } from './livefiles';
+import { FILES_POLL_MS, listUntracked, watchChangedPaths } from './livefiles';
 
 export interface RaceInput {
   repoRoot: string; repo: RepoInfo; issue: IssueData; config: Config;
@@ -286,7 +286,9 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     };
 
     let out: AgentResult = { ...agent };
-    const watched = { dir, baseSha: repo.baseSha };
+    // Whatever is untracked now (setup output) predates the agent and is not its work.
+    const preexisting = new Set((await listUntracked(dir, deps.exec)) ?? []);
+    const watched = { dir, baseSha: repo.baseSha, preexisting };
     const stopWatching = watchChangedPaths(watched, deps.exec, deps.filesPollMs ?? FILES_POLL_MS, (n) => {
       polledFiles = n;
       if (filesCount() !== sentFiles) sendProgress();
