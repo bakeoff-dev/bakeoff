@@ -16,7 +16,7 @@ The question it answers is not "which agent is best" but "which agent is best **
 codebase, on this issue**" — and the answer is a branch you can review and merge yourself,
 not a report.
 
-> **Status:** pre-release, 0.1.0, not yet on npm — install from source for now. Races score
+> **Status:** 0.1.0, the first release. Races score
 > end to end: task packets, per-agent pull requests, the full score breakdown, the ladder,
 > the terminal table, `share` / `ladder` / `export`, the standalone HTML scoreboard, and
 > `run --watch`. Four agents are supported. OpenCode has no driver yet, and the LLM judge
@@ -24,7 +24,14 @@ not a report.
 
 ## Install
 
-Until the npm release, install from source:
+```bash
+npm i -g bakeoff-cli
+bakeoff doctor
+```
+
+The package is `bakeoff-cli`; the command it installs is `bakeoff`. It runs on Node 22+.
+
+To build from source instead, you need [Bun](https://bun.sh):
 
 ```bash
 git clone https://github.com/bakeoff-dev/bakeoff
@@ -32,12 +39,7 @@ cd bakeoff
 bun install
 bun run build
 npm link          # puts `bakeoff` on your PATH
-
-bakeoff doctor
 ```
-
-`npm i -g bakeoff-cli` arrives with the 0.1.0 release. Building needs [Bun](https://bun.sh);
-running the built CLI does not — it is a Node binary.
 
 `bakeoff doctor` is the preflight: it checks each agent CLI is installed, logged in, and
 still has the flags Bakeoff drives it with, and that `git` and `gh` are ready.
