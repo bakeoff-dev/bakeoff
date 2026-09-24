@@ -48,19 +48,21 @@ export interface ProbeSpec {
 }
 
 const PROBE_TIMEOUT_MS = 90_000;
-const BILLING_RE = /\b(402|429)\b|credits|quota|billing|insufficient|rate[ _-]?limit/i;
+const BILLING_RE = /\b(402|429)\b|credit|quota|billing|insufficient|rate[ _-]?limit|usage limit/i;
 const NOTE_LINE_MAX = 120;
 
 /**
  * The first probe output line that reads as a billing or quota refusal, trimmed for a
- * doctor note. A JSON line is reduced to its error message first, so the note quotes
- * what the provider said rather than the envelope around it.
+ * doctor note. A JSON line is reduced to its message first (`error.message`, `message`,
+ * or Claude's `result`), so the note quotes what the provider said, and a number
+ * elsewhere in the envelope (`"duration_ms": 429`) is not mistaken for a status code.
  */
 export function billingLine(output: string): string | null {
   for (const raw of output.split('\n')) {
-    if (!BILLING_RE.test(raw)) continue;
     const o = jsonLine(raw);
-    const text = (o ? str(obj(o.error).message) || str(o.message) || raw : raw).trim();
+    const said = o ? str(obj(o.error).message) || str(o.error) || str(o.message) || str(o.result) : '';
+    const text = (said || raw).trim();
+    if (!BILLING_RE.test(text)) continue;
     return text.length > NOTE_LINE_MAX ? `${text.slice(0, NOTE_LINE_MAX - 3)}...` : text;
   }
   return null;
