@@ -48,6 +48,25 @@ export interface ProbeSpec {
 }
 
 const PROBE_TIMEOUT_MS = 90_000;
+const BILLING_RE = /\b(402|429)\b|credit|quota|billing|insufficient|rate[ _-]?limit|usage limit/i;
+const NOTE_LINE_MAX = 120;
+
+/**
+ * The first probe output line that reads as a billing or quota refusal, trimmed for a
+ * doctor note. A JSON line is reduced to its message first (`error.message`, `message`,
+ * or Claude's `result`), so the note quotes what the provider said, and a number
+ * elsewhere in the envelope (`"duration_ms": 429`) is not mistaken for a status code.
+ */
+export function billingLine(output: string): string | null {
+  for (const raw of output.split('\n')) {
+    const o = jsonLine(raw);
+    const said = o ? str(obj(o.error).message) || str(o.error) || str(o.message) || str(o.result) : '';
+    const text = (said || raw).trim();
+    if (!BILLING_RE.test(text)) continue;
+    return text.length > NOTE_LINE_MAX ? `${text.slice(0, NOTE_LINE_MAX - 3)}...` : text;
+  }
+  return null;
+}
 
 /**
  * Shared doctor: is the CLI installed, does it still have the flags we drive it with,
@@ -66,6 +85,7 @@ export async function probeDoctor(spec: ProbeSpec): Promise<DriverDoctor> {
   const notes = missing.length ? [`missing flags: ${missing.join(' ')}`] : [];
 
   const out: string[] = [];
+  const err: string[] = [];
   const dir = mkdtempSync(join(tmpdir(), 'bakeoff-probe-'));
   let probe;
   try {
@@ -77,6 +97,7 @@ export async function probeDoctor(spec: ProbeSpec): Promise<DriverDoctor> {
       timeoutMs: spec.timeoutMs ?? PROBE_TIMEOUT_MS,
       stdin: spec.probeStdin ?? '',
       onStdoutLine: (l) => out.push(l),
+      onStderrLine: (l) => err.push(l),
     });
   } finally {
     // The probe writes session state into its cwd; leaving one per doctor run adds up.
@@ -84,10 +105,14 @@ export async function probeDoctor(spec: ProbeSpec): Promise<DriverDoctor> {
   }
   const authOk = probe.status === 'ok' && spec.probeOk(out.join('\n'), probe.exitCode);
   if (!authOk) {
+    // A refusal for money is not a login problem; telling the user to log in sends them the wrong way.
+    const billing = billingLine([...out, ...err].join('\n'));
     notes.push(
       probe.status === 'timeout'
         ? 'auth probe timed out'
-        : `auth probe failed: run \`${spec.bin}\` once interactively to log in`,
+        : billing
+          ? `auth probe refused for billing or quota reasons: ${billing}`
+          : `auth probe failed: run \`${spec.bin}\` once interactively to log in`,
     );
   }
   return { found: true, version, authOk: authOk && missing.length === 0, notes };

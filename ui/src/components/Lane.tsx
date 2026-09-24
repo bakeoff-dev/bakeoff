@@ -6,6 +6,7 @@ import { noExtra, tokenFrom, withToken, type LaneExtra } from '../data';
 import { ModelLine } from './ModelLine';
 import { DRIVER_META, T, fmtClock, fmtCost, fmtTok, ghostButton, modelLabel } from '../theme';
 import { useNow } from '../useNow';
+import { costLabelPos } from '../costLabel';
 
 export const logColor = (line: string): string =>
   line.startsWith('Error') ? 'rgba(248,113,113,.8)' : line.startsWith('✓') ? 'rgba(74,222,128,.7)' : T.dim;
@@ -90,8 +91,7 @@ export function Lane({
             />
             <span
               style={{
-                position: 'absolute', left: `${fillPct}%`, top: -16,
-                transform: fillPct > 0 ? 'translateX(-100%)' : 'none',
+                position: 'absolute', ...costLabelPos(fillPct), top: -16,
                 fontSize: 13, fontWeight: 600, letterSpacing: '-.02em', color: meta.color,
                 transition: 'left .6s linear', whiteSpace: 'nowrap',
               }}

@@ -7,6 +7,7 @@ import {
   addTokens, agentStatus, createUsageLedger, dominantModel, helpHasFlags, normalizeModel,
   type AgentEvent, type Driver, type LaunchInput, type LaunchResult, type ModelShare,
 } from './types';
+import { billingLine } from './shared';
 
 export interface ClaudeResult {
   costUsd: number | null;
@@ -241,6 +242,7 @@ export const claudeDriver: Driver = {
 
     // Real probe: a one-line prompt with a tiny budget. Exit 0 and no is_error means auth works.
     const probeLines: string[] = [];
+    const probeErr: string[] = [];
     const probe = await runProcess({
       cmd: 'claude',
       args: ['-p', 'say ok', '--model', PROBE_MODEL, '--max-budget-usd', PROBE_BUDGET_USD, '--output-format', 'json'],
@@ -248,13 +250,18 @@ export const claudeDriver: Driver = {
       timeoutMs: 60_000,
       stdin: '',
       onStdoutLine: (l) => probeLines.push(l),
+      onStderrLine: (l) => probeErr.push(l),
     });
     const authOk = probe.status === 'ok' && probeAuthOk(probeLines.join(''));
     if (!authOk) {
+      // A refusal for money is not a login problem; telling the user to log in sends them the wrong way.
+      const billing = billingLine([...probeLines, ...probeErr].join('\n'));
       notes.push(
         probe.status === 'timeout'
           ? 'auth probe timed out (workspace trust prompt? see Task 15)'
-          : 'auth probe failed: run `claude` once interactively to log in',
+          : billing
+            ? `auth probe refused for billing or quota reasons: ${billing}`
+            : 'auth probe failed: run `claude` once interactively to log in',
       );
     }
     return { found: true, version, authOk: authOk && missing.length === 0, notes };
