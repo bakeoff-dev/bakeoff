@@ -4,7 +4,7 @@
 
 **Race coding agents on your real issues. Merge the winner.**
 
-![A live race: Claude Code, Codex and Cursor work the same issue in parallel, then the scoreboard ranks their pull requests](docs/hero.gif)
+![A live race: Claude Code, Codex and Cursor work the same issue in parallel, then the scoreboard ranks their pull requests](https://raw.githubusercontent.com/bakeoff-dev/bakeoff/main/docs/hero.gif)
 
 Pick an open issue in your repository. Bakeoff gives the same task packet to every agent
 you name, runs each one in its own git worktree under the same budget and the same wall

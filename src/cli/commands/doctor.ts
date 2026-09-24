@@ -9,6 +9,41 @@ export interface DoctorLine { name: string; ok: boolean; detail: string }
 // TESTED_VERSIONS only covers the drivers that ship; `gemini` is a schema slot with no driver.
 const TESTED: Partial<Record<DriverId, string>> = TESTED_VERSIONS;
 
+/**
+ * Numeric parts of a version string, ignoring a trailing `-<hash>` suffix (Cursor's
+ * date-style versions, e.g. `2026.09.23-86fc751`). Returns null when any dotted
+ * segment before the suffix is not a plain non-negative integer -- an unparseable
+ * version should never be guessed at.
+ */
+function numericParts(version: string): number[] | null {
+  const datePart = version.split('-')[0] ?? version;
+  const segments = datePart.split('.');
+  const parts: number[] = [];
+  for (const seg of segments) {
+    if (!/^\d+$/.test(seg)) return null;
+    parts.push(Number(seg));
+  }
+  return parts.length > 0 ? parts : null;
+}
+
+/**
+ * Compares two version strings numerically, dotted segment by dotted segment.
+ * Handles both plain dotted versions (2.1.280 vs 2.1.263) and Cursor's date-style
+ * versions (2026.09.23-86fc751), where the hash suffix is ignored. Returns null when
+ * either side cannot be parsed, so an unfamiliar format never triggers a false note.
+ */
+export function compareVersions(a: string, b: string): number | null {
+  const pa = numericParts(a);
+  const pb = numericParts(b);
+  if (pa === null || pb === null) return null;
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 export async function doctorReport(ids: DriverId[], run: Exec = exec): Promise<DoctorLine[]> {
   const lines: DoctorLine[] = [];
   const git = await run('git', ['--version']);
@@ -29,7 +64,8 @@ export async function doctorReport(ids: DriverId[], run: Exec = exec): Promise<D
   for (const { d, id, r } of probes) {
     const tested = TESTED[id];
     const notes = [...r.notes];
-    if (r.version && tested && r.version !== tested) notes.push(`tested with ${tested}`);
+    const cmp = r.version && tested ? compareVersions(r.version, tested) : null;
+    if (cmp !== null && cmp < 0) notes.push(`older than tested ${tested}; update it`);
     lines.push({
       name: d.displayName,
       ok: r.found && r.authOk,
