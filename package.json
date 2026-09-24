@@ -40,7 +40,8 @@
     "typecheck": "tsc --noEmit",
     "build:ui": "vite build --config ui/vite.config.ts && mv dist/index.html dist/ui.html",
     "build:cli": "bun scripts/build-cli.ts",
-    "build": "bun run build:ui && bun run build:cli"
+    "build": "bun run build:ui && bun run build:cli",
+    "prepublishOnly": "bun run test && bun run typecheck && bun run build"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",
