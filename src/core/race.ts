@@ -21,6 +21,7 @@ import { finalizeScores, scoreAgent as realScoreAgent } from './scorer';
 import { updateLadder } from './ladder';
 import { readLadder, writeLadder } from './store';
 import { runProcess } from './process';
+import { FILES_POLL_MS, watchChangedPaths } from './livefiles';
 
 export interface RaceInput {
   repoRoot: string; repo: RepoInfo; issue: IssueData; config: Config;
@@ -52,6 +53,8 @@ export interface RaceDeps {
   persistLadder: ((repoRoot: string, rec: RunRecord) => void) | null;
   onEvent?: (e: RaceEvent) => void;
   abort?: AbortRegistry;
+  /** How often the live files count reads `git status` in each worktree. */
+  filesPollMs?: number;
 }
 
 export function createAbortRegistry(): AbortRegistry {
@@ -232,6 +235,10 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     const logPath = p.log(runId, agent.driver);
     const meter = deps.meterFor(input.caps.budgetUsd);
     const files = new Set<string>();
+    // Driver file events are a fallback; git status in the worktree is the main source.
+    let polledFiles = 0;
+    let sentFiles = 0;
+    const filesCount = (): number => Math.max(files.size, polledFiles);
     let lastAction = '';
     let lastProgress = 0;
     let tokens: TokenUsage | null = null;
@@ -266,17 +273,23 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
       // Throttle the cosmetic stream: actions and files arrive faster than anyone can read.
       // Metrics always get through, so cost and tokens never sit stale behind the throttle.
       const isMetric = e.kind === 'cost' || e.kind === 'usage';
-      if (isMetric || nowMs - lastProgress > PROGRESS_MIN_MS) {
-        lastProgress = nowMs;
-        emit({
-          type: 'agent.progress', at: at(), driver: agent.driver,
-          costUsd: meter.costUsd, tokens, lastAction, filesTouched: files.size,
-          logTail: liveTail(logPath),
-        });
-      }
+      if (isMetric || nowMs - lastProgress > PROGRESS_MIN_MS) sendProgress();
+    };
+    const sendProgress = (): void => {
+      lastProgress = Date.now();
+      sentFiles = filesCount();
+      emit({
+        type: 'agent.progress', at: at(), driver: agent.driver,
+        costUsd: meter.costUsd, tokens, lastAction, filesTouched: sentFiles,
+        logTail: liveTail(logPath),
+      });
     };
 
     let out: AgentResult = { ...agent };
+    const stopWatching = watchChangedPaths(dir, deps.exec, deps.filesPollMs ?? FILES_POLL_MS, (n) => {
+      polledFiles = n;
+      if (filesCount() !== sentFiles) sendProgress();
+    });
     try {
       const r = await driver.launch({
         packet: packet.text, packetPath, worktree: dir, branch: agent.branch, model: agent.model,
@@ -290,6 +303,8 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     } catch (err) {
       out = { ...out, status: 'crashed', exitCode: null, durationMs: 0 };
       writeFileSync(logPath, `\n[${NAMES.bin}] driver threw: ${(err as Error).message}\n`, { flag: 'a' });
+    } finally {
+      stopWatching();
     }
     emit({
       type: 'agent.exited', at: at(), driver: agent.driver, status: out.status,
