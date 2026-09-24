@@ -286,7 +286,8 @@ export async function runRace(input: RaceInput, deps: RaceDeps = defaultDeps()):
     };
 
     let out: AgentResult = { ...agent };
-    const stopWatching = watchChangedPaths(dir, deps.exec, deps.filesPollMs ?? FILES_POLL_MS, (n) => {
+    const watched = { dir, baseSha: repo.baseSha };
+    const stopWatching = watchChangedPaths(watched, deps.exec, deps.filesPollMs ?? FILES_POLL_MS, (n) => {
       polledFiles = n;
       if (filesCount() !== sentFiles) sendProgress();
     });
